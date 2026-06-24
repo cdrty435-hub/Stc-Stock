@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC Die Casting – Spare Parts Dashboard</title>
+<style>
+:root {
+  --bg: #f0f2f5;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text1: #1e293b;
+  --text2: #64748b;
+  --accent: #2563eb;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --green: #22c55e;
+  --blue: #3b82f6;
+  --purple: #8b5cf6;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text1);font-size:14px;}
+
+/* HEADER */
+.header{background:#1e293b;color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:12px;}
+.logo{font-size:16px;font-weight:700;white-space:nowrap;}
+.logo span{color:#60a5fa;font-size:12px;margin-left:6px;}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#6b7280;}
+.status-dot.ok{background:#22c55e;}
+.last-update{font-size:11px;color:#94a3b8;}
+.btn-refresh{background:#3b82f6;color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;}
+.btn-refresh:hover{background:#2563eb;}
+.btn-pdf{background:#8b5cf6;color:#fff;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;}
+.btn-pdf:hover{background:#7c3aed;}
+
+/* SUMMARY CARDS */
+.summary{display:flex;gap:10px;padding:14px 20px 0;flex-wrap:wrap;}
+.sum-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px;flex:1;min-width:130px;text-align:center;}
+.sum-card .label{font-size:11px;color:var(--text2);margin-bottom:4px;}
+.sum-card .val{font-size:22px;font-weight:700;}
+.sum-card.critical .val{color:var(--red);}
+.sum-card.order .val{color:var(--yellow);}
+.sum-card.enough .val{color:var(--green);}
+.sum-card.total .val{color:var(--accent);}
+
+/* FILTER BAR */
+.filter-bar{padding:10px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.filter-bar input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:200px;}
+.filter-bar select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+
+/* GROUP TABS */
+.tabs{padding:0 20px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:2px solid var(--border);margin-bottom:0;}
+.tab-btn{padding:8px 14px;border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--text2);border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:6px 6px 0 0;transition:.15s;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;background:#eff6ff;}
+.tab-btn:hover:not(.active){background:#f8fafc;}
+
+/* TABLE */
+.table-wrap{padding:12px 20px;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden;border:1px solid var(--border);}
+thead{background:#f8fafc;}
+th{padding:10px 12px;text-align:left;font-size:12px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8fafc;}
+.part-id{font-family:monospace;font-size:12px;color:var(--text2);}
+.desc{max-width:220px;line-height:1.4;}
+.group-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;}
+.stock-num{font-weight:700;font-size:15px;}
+.stock-CRITICAL{color:var(--red);}
+.stock-Order{color:var(--yellow);}
+.stock-Enough{color:var(--green);}
+.stock-Over{color:var(--purple);}
+
+/* STATUS BADGE */
+.st-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;}
+.st-CRITICAL{background:rgba(239,68,68,.15);color:var(--red);border:1px solid var(--red);}
+.st-Order{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid var(--yellow);}
+.st-Enough{background:rgba(34,197,94,.15);color:var(--green);border:1px solid var(--green);}
+.st-Over{background:rgba(139,92,246,.15);color:var(--purple);border:1px solid var(--purple);}
+
+/* GROUP COLOR MAP */
+.g-TIP{background:#dbeafe;color:#1d4ed8;}
+.g-JOINT{background:#fce7f3;color:#9d174d;}
+.g-SLEEVE{background:#d1fae5;color:#065f46;}
+.g-ROD{background:#fef3c7;color:#92400e;}
+.g-LADLE{background:#e0e7ff;color:#3730a3;}
+.g-MOLD{background:#f3e8ff;color:#6b21a8;}
+.g-SPRAY{background:#ccfbf1;color:#0f766e;}
+.g-FURNACE{background:#fee2e2;color:#991b1b;}
+.g-ZINC{background:#f0fdf4;color:#166534;}
+.g-GENERAL{background:#f1f5f9;color:#475569;}
+
+/* PAGINATION */
+.pagination{display:flex;gap:4px;align-items:center;justify-content:flex-end;padding:8px 20px;flex-wrap:wrap;}
+.pg-btn{padding:4px 9px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:11px;}
+.pg-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.pg-btn:hover:not(.active){background:var(--border);}
+.pg-info{font-size:11px;color:var(--text2);margin:0 6px;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:24px;width:90%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.modal h3{margin-bottom:16px;font-size:16px;}
+.modal table{margin:12px 0;}
+.modal-footer{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
+.modal-footer button{padding:7px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;}
+.btn-close{background:#e2e8f0;color:var(--text1);}
+.btn-order{background:var(--accent);color:#fff;}
+.order-input{display:flex;gap:8px;margin-top:12px;align-items:center;}
+.order-input input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+.order-input button{padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;}
+
+/* LOADING */
+.loading{text-align:center;padding:60px;color:var(--text2);}
+.empty{text-align:center;padding:50px;color:var(--text2);}
+
+/* GROUP SUMMARY TABLE */
+.group-summary{padding:0 20px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;}
+.gs-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;}
+.gs-card .gs-name{font-size:12px;font-weight:700;margin-bottom:6px;}
+.gs-card .gs-row{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);}
+.gs-card .gs-row span:last-child{font-weight:600;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">⚙️ STC Die Casting <span>Spare Parts / สต๊อกอะไหล่</span></div>
+  <div class="header-right">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="last-update" id="lastUpdate">미연결 / ไม่ได้เชื่อมต่อ</div>
+    <button class="btn-refresh" onclick="loadData()">🔄 새로고침</button>
+    <button class="btn-pdf" onclick="exportPDF()">📄 PDF</button>
+  </div>
+</div>
+
+<!-- Google Sheets URL 설정 -->
+<div id="settingBar" style="background:#fffbeb;border-bottom:1px solid #fde68a;padding:8px 20px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+  <span style="font-size:12px;font-weight:600;color:#92400e;">⚙️ Google Sheets CSV URL 설정:</span>
+  <input id="urlMaster" type="text" placeholder="PARTS_MASTER CSV URL" style="flex:2;min-width:200px;padding:5px 8px;border:1px solid #fde68a;border-radius:5px;font-size:12px;">
+  <input id="urlIN" type="text" placeholder="IN 시트 CSV URL" style="flex:2;min-width:200px;padding:5px 8px;border:1px solid #fde68a;border-radius:5px;font-size:12px;">
+  <input id="urlOUT" type="text" placeholder="OUT 시트 CSV URL" style="flex:2;min-width:200px;padding:5px 8px;border:1px solid #fde68a;border-radius:5px;font-size:12px;">
+  <button onclick="saveURLs()" style="padding:5px 12px;background:#f59e0b;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12px;">저장 / บันทึก</button>
+  <button onclick="document.getElementById('settingBar').style.display='none'" style="padding:5px 10px;background:#e2e8f0;border:none;border-radius:5px;cursor:pointer;font-size:12px;">✕</button>
+</div>
+
+<div class="summary" id="summaryCards">
+  <div class="sum-card total"><div class="label">전체 품목 / รายการ</div><div class="val" id="sTot">-</div></div>
+  <div class="sum-card critical"><div class="label">🔴 CRITICAL</div><div class="val" id="sCrit">-</div></div>
+  <div class="sum-card order"><div class="label">🟡 Order</div><div class="val" id="sOrd">-</div></div>
+  <div class="sum-card enough"><div class="label">🟢 Enough</div><div class="val" id="sEno">-</div></div>
+</div>
+
+<div class="group-summary" id="groupSummary"></div>
+
+<div class="filter-bar">
+  <input type="text" id="searchInput" placeholder="🔍 검색 / ค้นหา (ID, Code, Description)..." oninput="applyFilter()">
+  <select id="statusFilter" onchange="applyFilter()">
+    <option value="">전체 상태</option>
+    <option value="CRITICAL">🔴 CRITICAL</option>
+    <option value="Order">🟡 Order</option>
+    <option value="Enough">🟢 Enough</option>
+  </select>
+</div>
+
+<div class="tabs" id="tabBar"></div>
+
+<div class="table-wrap">
+  <table id="mainTable">
+    <thead>
+      <tr>
+        <th>No.</th>
+        <th>PART ID</th>
+        <th>GROUP</th>
+        <th>TYPE / ประเภท</th>
+        <th>Description / รายละเอียด</th>
+        <th>Min</th>
+        <th>Max</th>
+        <th style="text-align:center;">재고 / สต๊อก</th>
+        <th style="text-align:center;">Status</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"><tr><td colspan="9" class="loading">⏳ 데이터 로딩 중... / กำลังโหลดข้อมูล...</td></tr></tbody>
+  </table>
+</div>
+<div class="pagination" id="paginationBar"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <h3 id="modalTitle">📋 부품 정보</h3>
+    <table width="100%" style="font-size:13px;">
+      <tr><td style="color:#64748b;width:80px;">PART ID</td><td id="mPartId" style="font-weight:600;font-family:monospace;"></td></tr>
+      <tr><td style="color:#64748b;">CODE</td><td id="mCode"></td></tr>
+      <tr><td style="color:#64748b;">GROUP</td><td id="mGroup"></td></tr>
+      <tr><td style="color:#64748b;">Description</td><td id="mDesc"></td></tr>
+      <tr><td style="color:#64748b;">Min / Max</td><td id="mMinMax"></td></tr>
+      <tr><td style="color:#64748b;">재고</td><td id="mStock" style="font-weight:700;font-size:16px;"></td></tr>
+      <tr><td style="color:#64748b;">부족 수량</td><td id="mShort" style="color:#ef4444;font-weight:600;"></td></tr>
+    </table>
+    <div class="order-input">
+      <input type="number" id="orderQty" placeholder="발주 수량 입력 / กรอกจำนวนสั่ง" min="1">
+      <button onclick="copyOrder()">📋 복사</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-close" onclick="closeModal()">닫기 / ปิด</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'dc_parts_urls';
+let RAW_PARTS = [], IN_DATA = [], OUT_DATA = [];
+let currentGroup = '전체', PAGE = 1, PAGE_SIZE = 50;
+let filtered = [];
+
+const GROUPS = ['전체','TIP','JOINT','SLEEVE','ROD','LADLE','MOLD','SPRAY','FURNACE','ZINC','GENERAL'];
+
+function saveURLs() {
+  const urls = {
+    master: document.getElementById('urlMaster').value.trim(),
+    in: document.getElementById('urlIN').value.trim(),
+    out: document.getElementById('urlOUT').value.trim()
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(urls));
+  loadData();
+}
+
+const DEFAULT_URLS = {
+  master: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1184751975&single=true&output=csv',
+  in:     'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1551956014&single=true&output=csv',
+  out:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1714810474&single=true&output=csv'
+};
+
+function getURLs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return {
+      master: saved.master || DEFAULT_URLS.master,
+      in:     saved.in     || DEFAULT_URLS.in,
+      out:    saved.out    || DEFAULT_URLS.out
+    };
+  } catch { return DEFAULT_URLS; }
+}
+
+function loadSavedURLs() {
+  const u = getURLs();
+  document.getElementById('urlMaster').value = u.master;
+  document.getElementById('urlIN').value = u.in;
+  document.getElementById('urlOUT').value = u.out;
+}
+
+async function fetchCSV(url) {
+  if (!url) return [];
+  const r = await fetch(url + '&t=' + Date.now());
+  const txt = await r.text();
+  const lines = txt.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(l => {
+    const vals = parseCSVLine(l);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (vals[i] || '').trim());
+    return obj;
+  }).filter(r => Object.values(r).some(v => v));
+}
+
+function parseCSVLine(line) {
+  const res = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { res.push(cur); cur = ''; }
+    else cur += c;
+  }
+  res.push(cur);
+  return res;
+}
+
+function calcStatus(stock, min, max) {
+  if (stock <= 0) return 'CRITICAL';
+  if (stock <= min) return 'Order';
+  if (max > 0 && stock > max) return 'Over';
+  return 'Enough';
+}
+
+async function loadData() {
+  const u = getURLs();
+  if (!u.master) {
+    document.getElementById('tableBody').innerHTML = '<tr><td colspan="9" class="empty">⚙️ 위에서 Google Sheets CSV URL을 입력해주세요.<br><small>กรุณากรอก URL ของ Google Sheets</small></td></tr>';
+    return;
+  }
+  document.getElementById('statusDot').className = 'status-dot';
+  document.getElementById('lastUpdate').textContent = '로딩중...';
+  try {
+    const [master, inData, outData] = await Promise.all([
+      fetchCSV(u.master), fetchCSV(u.in||''), fetchCSV(u.out||'')
+    ]);
+    RAW_PARTS = master;
+    IN_DATA = inData;
+    OUT_DATA = outData;
+
+    // 재고 계산: 초기STOCK + IN합계 - OUT합계
+    RAW_PARTS = RAW_PARTS.map(p => {
+      const pid = p.PART_ID;
+      const ini = parseFloat(p['초기STOCK'] || p.CURRENT || p.INITIAL_STOCK) || 0;
+      const inQty = IN_DATA.filter(r => r.PART_ID === pid).reduce((s, r) => s + (parseFloat(r.QTY) || 0), 0);
+      const outQty = OUT_DATA.filter(r => r.PART_ID === pid).reduce((s, r) => s + (parseFloat(r.QTY) || 0), 0);
+      const stock = ini + inQty - outQty;
+      const min = parseFloat(p.MIN) || 0;
+      const max = parseFloat(p.MAX) || 0;
+      return { ...p, _stock: stock, _min: min, _max: max, _status: calcStatus(stock, min, max) };
+    });
+
+    document.getElementById('statusDot').className = 'status-dot ok';
+    document.getElementById('lastUpdate').textContent = '업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+    buildTabs();
+    updateSummary();
+    applyFilter();
+  } catch (e) {
+    document.getElementById('lastUpdate').textContent = '연결 오류';
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="9" class="empty">❌ 데이터 로딩 실패: ${e.message}</td></tr>`;
+  }
+}
+
+function buildTabs() {
+  const bar = document.getElementById('tabBar');
+  bar.innerHTML = GROUPS.map(g => `<button class="tab-btn${g===currentGroup?' active':''}" onclick="switchTab('${g}')">${g}</button>`).join('');
+}
+
+function switchTab(g) {
+  currentGroup = g; PAGE = 1;
+  buildTabs(); applyFilter();
+}
+
+function updateSummary() {
+  const data = RAW_PARTS;
+  document.getElementById('sTot').textContent = data.length;
+  document.getElementById('sCrit').textContent = data.filter(p => p._status === 'CRITICAL').length;
+  document.getElementById('sOrd').textContent = data.filter(p => p._status === 'Order').length;
+  document.getElementById('sEno').textContent = data.filter(p => p._status === 'Enough').length;
+
+  // Group summary
+  const gs = document.getElementById('groupSummary');
+  const groups = ['TIP','JOINT','SLEEVE','ROD','LADLE','MOLD','SPRAY','FURNACE','ZINC','GENERAL'];
+  gs.innerHTML = groups.map(g => {
+    const gp = data.filter(p => p.GROUP === g);
+    const cr = gp.filter(p => p._status === 'CRITICAL').length;
+    const or = gp.filter(p => p._status === 'Order').length;
+    const en = gp.filter(p => p._status === 'Enough').length;
+    return `<div class="gs-card">
+      <div class="gs-name"><span class="group-badge g-${g}">${g}</span> (${gp.length})</div>
+      <div class="gs-row"><span>🔴 CRITICAL</span><span style="color:#ef4444">${cr}</span></div>
+      <div class="gs-row"><span>🟡 Order</span><span style="color:#f59e0b">${or}</span></div>
+      <div class="gs-row"><span>🟢 Enough</span><span style="color:#22c55e">${en}</span></div>
+    </div>`;
+  }).join('');
+}
+
+function applyFilter() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const st = document.getElementById('statusFilter').value;
+  filtered = RAW_PARTS.filter(p => {
+    if (currentGroup !== '전체' && p.GROUP !== currentGroup) return false;
+    if (st && p._status !== st) return false;
+    if (q) {
+      const txt = `${p.PART_ID} ${p.CODE} ${p.DESCRIPTION} ${p.TYPE}`.toLowerCase();
+      if (!txt.includes(q)) return false;
+    }
+    return true;
+  });
+  PAGE = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  PAGE = Math.min(PAGE, totalPages);
+  const slice = filtered.slice((PAGE-1)*PAGE_SIZE, PAGE*PAGE_SIZE);
+
+  if (!slice.length) {
+    document.getElementById('tableBody').innerHTML = '<tr><td colspan="9" class="empty">📭 데이터 없음 / ไม่มีข้อมูล</td></tr>';
+    document.getElementById('paginationBar').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('tableBody').innerHTML = slice.map((p, i) => {
+    const no = (PAGE-1)*PAGE_SIZE + i + 1;
+    const sc = p._stock;
+    const sCls = `stock-${p._status}`;
+    return `<tr>
+      <td>${no}</td>
+      <td class="part-id">${p.PART_ID}</td>
+      <td><span class="group-badge g-${p.GROUP}">${p.GROUP}</span></td>
+      <td style="font-size:12px;color:#475569;">${p.TYPE||''}</td>
+      <td class="desc">${p.DESCRIPTION||''}</td>
+      <td style="text-align:center;">${p._min}</td>
+      <td style="text-align:center;">${p._max}</td>
+      <td style="text-align:center;"><span class="stock-num ${sCls}">${sc}</span></td>
+      <td style="text-align:center;"><span class="st-badge st-${p._status}" onclick="openModal(${RAW_PARTS.indexOf(p)})">${p._status}</span></td>
+    </tr>`;
+  }).join('');
+
+  // pagination
+  let pg = '';
+  for (let i = 1; i <= totalPages; i++) {
+    pg += `<button class="pg-btn${i===PAGE?' active':''}" onclick="goPage(${i})">${i}</button>`;
+  }
+  document.getElementById('paginationBar').innerHTML = `<span class="pg-info">${total}건 / ${totalPages}페이지</span>${pg}`;
+}
+
+function goPage(n) { PAGE = n; renderTable(); }
+
+let modalIdx = -1;
+function openModal(idx) {
+  const p = RAW_PARTS[idx]; modalIdx = idx;
+  const short = Math.max(0, p._min - p._stock + 1);
+  document.getElementById('mPartId').textContent = p.PART_ID;
+  document.getElementById('mCode').textContent = p.CODE || '-';
+  document.getElementById('mGroup').textContent = p.GROUP;
+  document.getElementById('mDesc').textContent = p.DESCRIPTION;
+  document.getElementById('mMinMax').textContent = `${p._min} / ${p._max}`;
+  document.getElementById('mStock').textContent = p._stock;
+  document.getElementById('mStock').className = `stock-${p._status}`;
+  document.getElementById('mShort').textContent = short > 0 ? `부족 ${short}개 / ขาด ${short} ชิ้น` : '-';
+  document.getElementById('orderQty').value = short > 0 ? short : '';
+  document.getElementById('modalTitle').textContent = `📋 ${p.PART_ID} – ${p._status}`;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modalOverlay'))
+    document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function copyOrder() {
+  const p = RAW_PARTS[modalIdx];
+  const qty = document.getElementById('orderQty').value;
+  const txt = `[발주] ${p.PART_ID} | ${p.CODE||''} | ${p.DESCRIPTION} | 수량: ${qty}`;
+  navigator.clipboard.writeText(txt).then(() => alert('클립보드에 복사됨!\nคัดลอกไปยังคลิปบอร์ดแล้ว'));
+}
+
+function exportPDF() {
+  const win = window.open('', '_blank');
+  const rows = filtered.map((p, i) => `<tr>
+    <td>${i+1}</td><td>${p.PART_ID}</td><td>${p.CODE||''}</td>
+    <td>${p.GROUP}</td><td>${p.DESCRIPTION||''}</td>
+    <td>${p._min}</td><td>${p._max}</td><td>${p._stock}</td><td>${p._status}</td>
+  </tr>`).join('');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <title>DC Spare Parts Report</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;}
+  table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:4px 6px;}
+  th{background:#1e293b;color:#fff;}.h1{font-size:16px;font-weight:700;margin-bottom:8px;}
+  .sub{color:#64748b;font-size:11px;margin-bottom:12px;}</style></head>
+  <body><div class="h1">⚙️ STC Die Casting – Spare Parts Report</div>
+  <div class="sub">출력: ${new Date().toLocaleString('ko-KR')} | 총 ${filtered.length}건</div>
+  <table><thead><tr><th>No</th><th>PART ID</th><th>CODE</th><th>GROUP</th>
+  <th>Description</th><th>Min</th><th>Max</th><th>재고</th><th>Status</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
+// Init
+loadSavedURLs();
+loadData();
+setInterval(loadData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
