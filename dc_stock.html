@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1e293b">
+<link rel="manifest" href="dc_manifest.json">
+<title>STC DC Stock App</title>
+<style>
+:root{
+  --bg:#f0f2f5;--card:#fff;--border:#e2e8f0;
+  --text1:#1e293b;--text2:#64748b;
+  --accent:#2563eb;--red:#ef4444;--yellow:#f59e0b;--green:#22c55e;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text1);font-size:14px;min-height:100vh;}
+
+/* HEADER */
+.header{background:#1e293b;color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+.logo{font-size:15px;font-weight:700;}
+.logo small{display:block;font-size:10px;color:#94a3b8;margin-top:1px;}
+.btn-setting{background:transparent;border:1px solid #475569;color:#94a3b8;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px;}
+
+/* STATUS BAR */
+.status-bar{background:#0f172a;padding:6px 16px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between;}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4b5563;margin-right:4px;}
+.dot.ok{background:#22c55e;}
+
+/* MAIN CONTENT */
+.content{padding:16px;}
+
+/* SCAN AREA */
+.scan-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.scan-card h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text2);}
+.scan-btn{width:100%;padding:14px;background:#1e293b;color:#fff;border:none;border-radius:10px;font-size:15px;cursor:pointer;letter-spacing:.5px;}
+.scan-btn:active{opacity:.8;}
+.manual-input{display:flex;gap:8px;margin-top:10px;}
+.manual-input input{flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;}
+.manual-input button{padding:10px 14px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;}
+
+/* PART INFO CARD */
+.part-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;display:none;}
+.part-card.show{display:block;}
+.part-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+.part-id-label{font-family:monospace;font-size:12px;color:var(--text2);}
+.part-name{font-size:15px;font-weight:700;margin:4px 0;line-height:1.4;}
+.part-group{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#dbeafe;color:#1d4ed8;}
+.stock-display{text-align:center;padding:14px;background:#f8fafc;border-radius:10px;margin:12px 0;}
+.stock-big{font-size:42px;font-weight:800;}
+.stock-label{font-size:12px;color:var(--text2);margin-top:2px;}
+.stock-minmax{font-size:12px;color:var(--text2);margin-top:4px;}
+.status-tag{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:700;margin-top:6px;}
+.st-CRITICAL{background:#fee2e2;color:var(--red);}
+.st-Order{background:#fef3c7;color:var(--yellow);}
+.st-Enough{background:#dcfce7;color:var(--green);}
+
+/* IO BUTTONS */
+.io-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;}
+.btn-in{padding:16px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;}
+.btn-out{padding:16px;background:#ef4444;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;}
+.btn-in:active,.btn-out:active{opacity:.8;}
+
+/* QTY MODAL */
+.qty-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:flex-end;justify-content:center;}
+.qty-overlay.show{display:flex;}
+.qty-sheet{background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;}
+.qty-sheet h3{font-size:16px;font-weight:700;margin-bottom:6px;}
+.qty-sheet .sub{font-size:12px;color:var(--text2);margin-bottom:16px;}
+.qty-sheet input{width:100%;padding:14px;font-size:22px;border:2px solid var(--border);border-radius:10px;text-align:center;margin-bottom:14px;}
+.qty-sheet input:focus{outline:none;border-color:var(--accent);}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.numpad button{padding:14px;font-size:18px;border:1px solid var(--border);border-radius:10px;background:#f8fafc;cursor:pointer;}
+.numpad button:active{background:#e2e8f0;}
+.qty-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.qty-cancel{padding:14px;background:#e2e8f0;border:none;border-radius:10px;font-size:15px;cursor:pointer;}
+.qty-confirm{padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;}
+.qty-confirm.in{background:#22c55e;}
+.qty-confirm.out{background:#ef4444;}
+
+/* HISTORY */
+.history-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.history-card h3{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text2);}
+.hist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.hist-item:last-child{border-bottom:none;}
+.hist-badge{padding:2px 8px;border-radius:8px;font-size:11px;font-weight:700;}
+.hist-in{background:#dcfce7;color:#166534;}
+.hist-out{background:#fee2e2;color:#991b1b;}
+.hist-info{flex:1;}
+.hist-qty{font-weight:700;}
+
+/* SETTING PANEL */
+.setting-panel{display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.setting-panel.show{display:block;}
+.setting-panel label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;}
+.setting-panel input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:10px;}
+.setting-panel button{width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;z-index:300;opacity:0;transition:.3s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">⚙️ DC Stock App
+    <small>Die Casting Spare Parts / อะไหล่ฉีดขึ้นรูป</small>
+  </div>
+  <button class="btn-setting" onclick="toggleSetting()">⚙️ 설정</button>
+</div>
+<div class="status-bar">
+  <span><span class="dot" id="dotEl"></span><span id="statusTxt">미연결</span></span>
+  <span id="lastUpd"></span>
+</div>
+
+<div class="content">
+
+  <!-- Setting Panel -->
+  <div class="setting-panel" id="settingPanel">
+    <label>PARTS_MASTER CSV URL</label>
+    <input id="sMaster" type="url" placeholder="https://docs.google.com/...">
+    <label>IN 시트 CSV URL</label>
+    <input id="sIN" type="url" placeholder="https://docs.google.com/...">
+    <label>OUT 시트 CSV URL</label>
+    <input id="sOUT" type="url" placeholder="https://docs.google.com/...">
+    <label>Google Apps Script URL (IN/OUT 기록용)</label>
+    <input id="sGAS" type="url" placeholder="https://script.google.com/...">
+    <button onclick="saveSetting()">💾 저장 / บันทึก</button>
+  </div>
+
+  <!-- Scan Area -->
+  <div class="scan-card">
+    <h3>📦 부품 검색 / ค้นหาอะไหล่</h3>
+    <button class="scan-btn" onclick="startScan()">📷 QR 스캔 / สแกน QR Code</button>
+    <div class="manual-input">
+      <input type="text" id="manualId" placeholder="PART ID 입력 (예: DC001)" autocomplete="off" onkeydown="if(event.key==='Enter')searchPart()">
+      <button onclick="searchPart()">검색</button>
+    </div>
+    <div id="videoWrap" style="display:none;margin-top:10px;">
+      <video id="video" style="width:100%;border-radius:8px;" autoplay playsinline></video>
+      <button onclick="stopScan()" style="margin-top:8px;width:100%;padding:10px;background:#e2e8f0;border:none;border-radius:8px;cursor:pointer;">■ 중지</button>
+    </div>
+  </div>
+
+  <!-- Part Info -->
+  <div class="part-card" id="partCard">
+    <div class="part-header">
+      <div>
+        <div class="part-id-label" id="pcId"></div>
+        <div class="part-name" id="pcName"></div>
+        <span class="part-group" id="pcGroup"></span>
+      </div>
+      <button onclick="clearPart()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;">✕</button>
+    </div>
+    <div class="stock-display">
+      <div class="stock-big" id="pcStock"></div>
+      <div class="stock-label">현재 재고 / สต๊อกปัจจุบัน</div>
+      <div class="stock-minmax" id="pcMinMax"></div>
+      <div><span class="status-tag" id="pcStatus"></span></div>
+    </div>
+    <div class="io-buttons">
+      <button class="btn-in" onclick="openQty('IN')">⬆️ IN<br><small>입고 / รับเข้า</small></button>
+      <button class="btn-out" onclick="openQty('OUT')">⬇️ OUT<br><small>출고 / นำออก</small></button>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history-card">
+    <h3>📋 최근 기록 / รายการล่าสุด</h3>
+    <div id="histList"><div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;">기록 없음 / ไม่มีรายการ</div></div>
+  </div>
+
+</div>
+
+<!-- QTY Modal -->
+<div class="qty-overlay" id="qtyOverlay">
+  <div class="qty-sheet">
+    <h3 id="qtyTitle">수량 입력</h3>
+    <div class="sub" id="qtySub"></div>
+    <input type="number" id="qtyInput" min="1" placeholder="0">
+    <div id="machineWrap" style="display:none;margin:0 0 10px;">
+      <input type="text" id="machineInput" placeholder="설비명 (예: MC-01) / ชื่อเครื่อง" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:14px;">
+    </div>
+    <div class="numpad">
+      <button onclick="numpad(1)">1</button><button onclick="numpad(2)">2</button><button onclick="numpad(3)">3</button>
+      <button onclick="numpad(4)">4</button><button onclick="numpad(5)">5</button><button onclick="numpad(6)">6</button>
+      <button onclick="numpad(7)">7</button><button onclick="numpad(8)">8</button><button onclick="numpad(9)">9</button>
+      <button onclick="numpad('C')" style="color:#ef4444;">C</button><button onclick="numpad(0)">0</button><button onclick="numpad('⌫')" style="color:#ef4444;">⌫</button>
+    </div>
+    <div class="qty-actions">
+      <button class="qty-cancel" onclick="closeQty()">취소 / ยกเลิก</button>
+      <button class="qty-confirm" id="qtyConfirmBtn" onclick="confirmIO()">확인 / ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SKEY = 'dc_stock_cfg';
+let PARTS = [], IN_LIST = [], OUT_LIST = [];
+let currentPart = null, ioMode = '';
+let scanStream = null;
+const history = [];
+
+const DEFAULT_CFG = {
+  master: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1184751975&single=true&output=csv',
+  in:     'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1551956014&single=true&output=csv',
+  out:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vTRvgvVsCpKwtTjhrOOv-73vw3LC7_S3Ft3-OJ_hBF5ah4QtSjlhdx76mYgqGZU-pE-r2rEps_Wkwr6/pub?gid=1714810474&single=true&output=csv',
+  gas:    ''
+};
+
+function getSetting() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SKEY)) || {};
+    return {
+      master: saved.master || DEFAULT_CFG.master,
+      in:     saved.in     || DEFAULT_CFG.in,
+      out:    saved.out    || DEFAULT_CFG.out,
+      gas:    saved.gas    || DEFAULT_CFG.gas
+    };
+  } catch { return DEFAULT_CFG; }
+}
+function saveSetting() {
+  const cfg = {
+    master: document.getElementById('sMaster').value.trim(),
+    in: document.getElementById('sIN').value.trim(),
+    out: document.getElementById('sOUT').value.trim(),
+    gas: document.getElementById('sGAS').value.trim()
+  };
+  localStorage.setItem(SKEY, JSON.stringify(cfg));
+  toggleSetting();
+  loadParts();
+  toast('설정 저장됨 / บันทึกแล้ว');
+}
+function loadSettingUI() {
+  const c = getSetting();
+  if (c.master) document.getElementById('sMaster').value = c.master;
+  if (c.in) document.getElementById('sIN').value = c.in;
+  if (c.out) document.getElementById('sOUT').value = c.out;
+  if (c.gas) document.getElementById('sGAS').value = c.gas;
+}
+function toggleSetting() {
+  const p = document.getElementById('settingPanel');
+  p.classList.toggle('show');
+}
+
+async function fetchCSV(url) {
+  if (!url) return [];
+  const r = await fetch(url + '&t=' + Date.now());
+  const txt = await r.text();
+  const lines = txt.trim().split('\n');
+  if (lines.length < 2) return [];
+  const hdrs = parseCSV(lines[0]);
+  return lines.slice(1).map(l => {
+    const vals = parseCSV(l);
+    const o = {};
+    hdrs.forEach((h, i) => o[h.trim()] = (vals[i] || '').trim());
+    return o;
+  }).filter(r => Object.values(r).some(v => v));
+}
+function parseCSV(line) {
+  const res = []; let cur = '', inQ = false;
+  for (let c of line) {
+    if (c === '"') inQ = !inQ;
+    else if (c === ',' && !inQ) { res.push(cur); cur = ''; }
+    else cur += c;
+  }
+  res.push(cur); return res;
+}
+
+function calcStatus(stock, min, max) {
+  if (stock <= 0) return 'CRITICAL';
+  if (stock <= min) return 'Order';
+  if (max > 0 && stock > max) return 'Over';
+  return 'Enough';
+}
+
+async function loadParts() {
+  const cfg = getSetting();
+  if (!cfg.master) return;
+  try {
+    const [master, inD, outD] = await Promise.all([
+      fetchCSV(cfg.master), fetchCSV(cfg.in||''), fetchCSV(cfg.out||'')
+    ]);
+    PARTS = master.map(p => {
+      const pid = p.PART_ID;
+      const ini = parseFloat(p['초기STOCK'] || p.CURRENT || p.INITIAL_STOCK) || 0;
+      const inQ = inD.filter(r => r.PART_ID === pid).reduce((s, r) => s + (parseFloat(r.QTY)||0), 0);
+      const outQ = outD.filter(r => r.PART_ID === pid).reduce((s, r) => s + (parseFloat(r.QTY)||0), 0);
+      const stock = ini + inQ - outQ;
+      const min = parseFloat(p.MIN) || 0;
+      const max = parseFloat(p.MAX) || 0;
+      return { ...p, _stock: stock, _min: min, _max: max, _status: calcStatus(stock, min, max) };
+    });
+    document.getElementById('dotEl').className = 'dot ok';
+    document.getElementById('statusTxt').textContent = `연결됨 / เชื่อมต่อแล้ว (${PARTS.length}개)`;
+    document.getElementById('lastUpd').textContent = new Date().toLocaleTimeString('ko-KR');
+    if (currentPart) {
+      const updated = PARTS.find(p => p.PART_ID === currentPart.PART_ID);
+      if (updated) { currentPart = updated; renderPartCard(); }
+    }
+  } catch (e) {
+    document.getElementById('statusTxt').textContent = '연결 오류';
+  }
+}
+
+function searchPart() {
+  const q = document.getElementById('manualId').value.trim().toUpperCase();
+  if (!q) return;
+  const found = PARTS.find(p => p.PART_ID === q || p.CODE === q);
+  if (!found) { toast('❌ 부품을 찾을 수 없음 / ไม่พบอะไหล่'); return; }
+  currentPart = found;
+  renderPartCard();
+}
+
+function renderPartCard() {
+  const p = currentPart;
+  document.getElementById('pcId').textContent = p.PART_ID + (p.CODE ? ` | ${p.CODE}` : '');
+  document.getElementById('pcName').textContent = p.DESCRIPTION || p.TYPE || '-';
+  document.getElementById('pcGroup').textContent = p.GROUP;
+  document.getElementById('pcStock').textContent = p._stock;
+  document.getElementById('pcStock').className = `stock-big stock-${p._status === 'Enough' ? 'green' : p._status === 'Order' ? 'yellow' : 'red'}`;
+  document.getElementById('pcMinMax').textContent = `Min: ${p._min}  /  Max: ${p._max}`;
+  const stEl = document.getElementById('pcStatus');
+  stEl.textContent = p._status;
+  stEl.className = `status-tag st-${p._status}`;
+  document.getElementById('partCard').classList.add('show');
+
+  // inline color
+  const sc = p._stock;
+  document.getElementById('pcStock').style.color = p._status === 'CRITICAL' ? '#ef4444' : p._status === 'Order' ? '#f59e0b' : '#22c55e';
+}
+
+function clearPart() {
+  currentPart = null;
+  document.getElementById('partCard').classList.remove('show');
+  document.getElementById('manualId').value = '';
+}
+
+// QR Scan
+async function startScan() {
+  if (!('BarcodeDetector' in window)) {
+    toast('이 브라우저는 QR 스캔 미지원. 수동 입력 사용하세요.');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    scanStream = stream;
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    document.getElementById('videoWrap').style.display = 'block';
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+    const scan = async () => {
+      if (!scanStream) return;
+      try {
+        const codes = await detector.detect(video);
+        if (codes.length > 0) {
+          const val = codes[0].rawValue;
+          stopScan();
+          document.getElementById('manualId').value = val;
+          searchPart();
+        } else requestAnimationFrame(scan);
+      } catch { requestAnimationFrame(scan); }
+    };
+    video.onloadedmetadata = () => scan();
+  } catch { toast('카메라 접근 불가 / ไม่สามารถเข้าถึงกล้อง'); }
+}
+function stopScan() {
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  document.getElementById('videoWrap').style.display = 'none';
+}
+
+// IO
+function openQty(mode) {
+  if (!currentPart) return;
+  ioMode = mode;
+  document.getElementById('qtyTitle').textContent = mode === 'IN' ? '⬆️ 입고 / รับเข้า' : '⬇️ 출고 / นำออก';
+  document.getElementById('qtySub').textContent = `${currentPart.PART_ID} – ${currentPart.DESCRIPTION || ''} | 현재: ${currentPart._stock}`;
+  const btn = document.getElementById('qtyConfirmBtn');
+  btn.textContent = mode === 'IN' ? '입고 확인 / ยืนยันรับ' : '출고 확인 / ยืนยันนำออก';
+  btn.className = `qty-confirm ${mode.toLowerCase()}`;
+  document.getElementById('qtyInput').value = '';
+  document.getElementById('machineInput').value = '';
+  // OUT일 때만 설비명 입력 표시
+  document.getElementById('machineWrap').style.display = mode === 'OUT' ? 'block' : 'none';
+  document.getElementById('qtyOverlay').classList.add('show');
+}
+function closeQty() { document.getElementById('qtyOverlay').classList.remove('show'); }
+function numpad(v) {
+  const el = document.getElementById('qtyInput');
+  if (v === 'C') el.value = '';
+  else if (v === '⌫') el.value = el.value.slice(0, -1);
+  else el.value += v;
+}
+
+async function confirmIO() {
+  const qty = parseInt(document.getElementById('qtyInput').value);
+  if (!qty || qty <= 0) { toast('수량을 입력하세요 / กรุณากรอกจำนวน'); return; }
+  if (ioMode === 'OUT' && qty > currentPart._stock) {
+    toast(`⚠️ 재고 부족! 현재: ${currentPart._stock}`); return;
+  }
+  closeQty();
+
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0,10);
+  const timeStr = now.toLocaleTimeString('ko-KR');
+
+  // GAS 기록
+  const cfg = getSetting();
+  if (cfg.gas) {
+    try {
+      await fetch(cfg.gas, {
+        method: 'POST',
+        body: JSON.stringify({
+          type: ioMode,
+          partId: currentPart.PART_ID,
+          description: currentPart.DESCRIPTION,
+          group: currentPart.GROUP,
+          qty,
+          date: dateStr,
+          machine: ioMode === 'OUT' ? (document.getElementById('machineInput').value.trim() || '') : '',
+          by: 'App'
+        })
+      });
+    } catch {}
+  }
+
+  // 재고 임시 반영
+  if (ioMode === 'IN') currentPart._stock += qty;
+  else currentPart._stock -= qty;
+  currentPart._status = calcStatus(currentPart._stock, currentPart._min, currentPart._max);
+  renderPartCard();
+
+  // history
+  history.unshift({ mode: ioMode, part: currentPart.PART_ID, desc: currentPart.DESCRIPTION, qty, time: timeStr });
+  if (history.length > 20) history.pop();
+  renderHistory();
+
+  toast(`✅ ${ioMode} ${qty}개 완료 / สำเร็จ ${qty} ชิ้น`);
+  setTimeout(loadParts, 2000);
+}
+
+function renderHistory() {
+  const el = document.getElementById('histList');
+  if (!history.length) { el.innerHTML = '<div style="color:#94a3b8;font-size:13px;text-align:center;padding:20px;">기록 없음</div>'; return; }
+  el.innerHTML = history.map(h => `
+    <div class="hist-item">
+      <span class="hist-badge hist-${h.mode.toLowerCase()}">${h.mode}</span>
+      <div class="hist-info">
+        <div>${h.part} <small style="color:#94a3b8">${h.desc?.substring(0,20)||''}</small></div>
+        <div style="font-size:11px;color:#94a3b8">${h.time}</div>
+      </div>
+      <span class="hist-qty" style="color:${h.mode==='IN'?'#22c55e':'#ef4444'}">${h.mode==='IN'?'+':'-'}${h.qty}</span>
+    </div>`).join('');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+loadSettingUI();
+loadParts();
+setInterval(loadParts, 5 * 60 * 1000);
+</script>
+</body>
+</html>
