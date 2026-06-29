@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC 설비 등급 관리</title>
+<style>
+:root{
+  --bg:#1a1f2e;--bg2:#242938;--bg3:#2e3447;--border:#3d4460;
+  --text:#e6edf3;--text2:#a0aabb;--text3:#7a8499;--accent:#58a6ff;
+  --ga:#3fb950;--gb:#79c0ff;--gc:#e3a825;--gd:#f0883e;--ge:#f85149;
+  --ga-bg:rgba(63,185,80,.15);--gb-bg:rgba(121,192,255,.15);
+  --gc-bg:rgba(227,168,37,.15);--gd-bg:rgba(240,136,62,.15);--ge-bg:rgba(248,81,73,.15);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI','Noto Sans KR',sans-serif;font-size:14px;}
+
+/* ── 헤더 ── */
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{width:32px;height:32px;background:linear-gradient(135deg,#58a6ff,#f0883e);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff;flex-shrink:0;}
+.btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;cursor:pointer;}
+.btn:hover{background:var(--border);}
+.btn-p{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-p:hover{opacity:.85;}
+
+/* ── 탭 ── */
+.tab-nav{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;}
+.tb{padding:11px 16px;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tb:hover{color:var(--text);}
+.tb.on{color:var(--accent);border-bottom-color:var(--accent);}
+.tc{display:none;}
+.tc.on{display:block;}
+main{padding:18px 24px;max-width:1400px;margin:0 auto;}
+
+/* ── 등급 뱃지 ── */
+.gb{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;font-weight:800;font-size:13px;}
+.gA{background:var(--ga-bg);color:var(--ga);}
+.gB{background:var(--gb-bg);color:var(--gb);}
+.gC{background:var(--gc-bg);color:var(--gc);}
+.gD{background:var(--gd-bg);color:var(--gd);}
+.gE{background:var(--ge-bg);color:var(--ge);}
+
+/* ── 개요 카드 ── */
+.ov-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.eq-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:hidden;position:relative;}
+.eq-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.card-dc::before{background:linear-gradient(90deg,#58a6ff,#1f6feb);}
+.card-tp::before{background:linear-gradient(90deg,#3fb950,#238636);}
+.card-fn::before{background:linear-gradient(90deg,#f0883e,#bd561d);}
+.card-ac::before{background:linear-gradient(90deg,#bc8cff,#8957e5);}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.card-name{font-size:13px;font-weight:700;}
+.card-cnt{font-size:11px;color:var(--text2);background:var(--bg3);padding:2px 8px;border-radius:20px;}
+/* 가로 누적 바 */
+.hbar{display:flex;height:10px;border-radius:5px;overflow:hidden;gap:1px;margin-bottom:8px;}
+.hbar-seg{height:100%;min-width:2px;}
+.hbar-lgd{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+.lgd-item{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--text2);}
+.lgd-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.worst-tag{font-size:10px;padding:3px 8px;border-radius:4px;background:var(--ge-bg);color:var(--ge);border:1px solid rgba(248,81,73,.3);display:inline-block;}
+
+/* ── 섹션 헤더 ── */
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.st{font-size:14px;font-weight:700;}
+
+/* ── 필터 칩 ── */
+.fbar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+.fc{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;}
+.fc:hover,.fc.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+/* ── 테이블 ── */
+.tw{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:10px 14px;text-align:left;font-size:11px;color:var(--text2);font-weight:600;letter-spacing:.04em;background:var(--bg3);border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:rgba(255,255,255,.025);}
+tbody td{padding:9px 14px;font-size:12px;vertical-align:middle;}
+.alink{color:var(--accent);cursor:pointer;font-size:11px;text-decoration:underline;}
+
+/* 점수 바 */
+.sbar{display:flex;align-items:center;gap:7px;}
+.sbar-bg{flex:1;height:5px;background:var(--bg3);border-radius:3px;min-width:50px;}
+.sbar-fill{height:100%;border-radius:3px;}
+.snum{font-size:11px;color:var(--text2);min-width:24px;text-align:right;}
+
+/* 상태 필 */
+.pill{font-size:10px;padding:2px 8px;border-radius:20px;}
+.p-wait{background:rgba(227,168,37,.15);color:var(--gc);}
+.p-go{background:rgba(88,166,255,.15);color:var(--accent);}
+.p-done{background:rgba(63,185,80,.15);color:var(--ga);}
+.p-none{color:var(--text3);}
+
+/* ── PM 서브탭 ── */
+.pm-stabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.pm-tb{padding:8px 16px;font-size:12px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;}
+.pm-tb:hover{color:var(--text);}
+.pm-tb.on{color:var(--accent);border-bottom-color:var(--accent);}
+.pm-sc{display:none;}
+.pm-sc.on{display:block;}
+
+/* PM 등록 레이아웃 */
+.pm-lay{display:grid;grid-template-columns:310px 1fr;gap:16px;}
+.pm-box{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.pm-box h3{font-size:13px;font-weight:700;margin-bottom:14px;}
+.ig{margin-bottom:11px;}
+.ig label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;}
+.ig input,.ig select{width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;}
+.ig input:focus,.ig select:focus{outline:none;border-color:var(--accent);}
+.ig2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* 워스트 체크 */
+.wi{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;margin-bottom:4px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;}
+.wi.sel{border-color:var(--accent);background:rgba(88,166,255,.07);}
+.wi-l{display:flex;align-items:center;gap:7px;}
+
+/* 우선순위 드래그 */
+.pri-item{display:flex;align-items:center;gap:9px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:9px 12px;margin-bottom:6px;cursor:grab;user-select:none;}
+.pri-item.dragging{opacity:.4;}
+.pri-item.drag-over{border-color:var(--accent);background:rgba(88,166,255,.07);}
+.drag-h{color:var(--text3);font-size:14px;}
+.pri-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:1px solid var(--border);background:var(--bg);color:var(--text2);flex-shrink:0;}
+.n1{background:rgba(248,81,73,.15)!important;color:var(--ge)!important;border-color:rgba(248,81,73,.4)!important;}
+.n2{background:rgba(240,136,62,.15)!important;color:var(--gd)!important;border-color:rgba(240,136,62,.4)!important;}
+.n3{background:rgba(227,168,37,.15)!important;color:var(--gc)!important;border-color:rgba(227,168,37,.4)!important;}
+.pri-info{flex:1;min-width:0;}
+.pri-name{font-size:12px;font-weight:600;}
+.pri-meta{font-size:10px;color:var(--text2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pri-rm{color:var(--text3);cursor:pointer;font-size:15px;flex-shrink:0;}
+.pri-rm:hover{color:var(--ge);}
+.mini-sel{padding:3px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:10px;cursor:pointer;}
+
+/* ── 간트 ── */
+.gantt-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.g-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);}
+.g-nav{display:flex;align-items:center;gap:5px;}
+.g-nbtn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.g-nbtn:hover{background:var(--border);}
+.g-mlbl{font-size:13px;font-weight:700;min-width:72px;text-align:center;}
+.g-vbtn{padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;}
+.g-vbtn.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.g-scroll{overflow-x:auto;}
+.g-inner{min-width:800px;}
+.g-hdr{display:flex;border-bottom:1px solid var(--border);}
+.g-eqcol{width:200px;flex-shrink:0;padding:7px 12px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.05em;border-right:1px solid var(--border);}
+.g-days{flex:1;display:flex;}
+.g-day{flex:1;text-align:center;padding:6px 2px;font-size:9px;color:var(--text3);border-right:1px solid rgba(61,68,96,.4);}
+.g-day.today{background:rgba(88,166,255,.1);color:var(--accent);font-weight:700;}
+.g-day.wknd{color:rgba(248,81,73,.7);}
+.g-row{display:flex;border-bottom:1px solid rgba(61,68,96,.35);min-height:38px;}
+.g-row:last-child{border-bottom:none;}
+.g-row:hover{background:rgba(255,255,255,.018);}
+.g-eqlbl{width:200px;flex-shrink:0;padding:6px 10px;display:flex;align-items:center;gap:5px;border-right:1px solid var(--border);font-size:11px;}
+.g-pri{font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;flex-shrink:0;}
+.g-ebtn{font-size:10px;color:var(--accent);margin-left:auto;cursor:pointer;padding:1px 5px;border-radius:3px;border:1px solid rgba(88,166,255,.3);white-space:nowrap;flex-shrink:0;}
+.g-ebtn:hover{background:rgba(88,166,255,.1);}
+.g-grid{flex:1;position:relative;}
+.g-gbg{position:absolute;inset:0;display:flex;pointer-events:none;}
+.g-gcell{flex:1;border-right:1px solid rgba(61,68,96,.2);}
+.g-gcell.wknd{background:rgba(255,255,255,.008);}
+.g-gcell.today-c{background:rgba(88,166,255,.05);}
+.g-barlyr{position:relative;height:100%;padding:7px 0;}
+.g-bar{position:absolute;height:24px;border-radius:5px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;cursor:pointer;top:7px;}
+.g-bar:hover{filter:brightness(1.15);}
+.g-bar.pend{opacity:.65;}
+.g-lgd{display:flex;gap:12px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap;}
+.g-li{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2);}
+.g-ld{width:10px;height:10px;border-radius:3px;}
+.g-empty{padding:50px;text-align:center;color:var(--text3);font-size:12px;}
+
+/* ── 완료이력 ── */
+.done-badge{background:rgba(63,185,80,.2);color:var(--ga);border-radius:10px;padding:1px 7px;font-size:10px;margin-left:5px;}
+
+/* ── 액션 ── */
+.act-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;}
+.act-stat{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;}
+.astat-n{font-size:28px;font-weight:800;line-height:1;}
+.astat-l{font-size:11px;color:var(--text2);margin-top:4px;}
+.act-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.ai-info{flex:1;}
+.ai-title{font-size:12px;font-weight:600;margin-bottom:3px;}
+.ai-meta{font-size:11px;color:var(--text2);}
+.ai-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.prog-w{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);}
+.prog-t{width:70px;height:4px;background:var(--bg3);border-radius:2px;}
+.prog-f{height:100%;border-radius:2px;background:var(--accent);}
+
+/* ── 이력 타임라인 ── */
+.hist-tl{position:relative;padding-left:20px;}
+.hist-tl::before{content:'';position:absolute;left:6px;top:0;bottom:0;width:1px;background:var(--border);}
+.hist-item{position:relative;margin-bottom:12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.hist-item::before{content:'';position:absolute;left:-17px;top:15px;width:8px;height:8px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);}
+.hist-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+.hist-date{font-size:11px;color:var(--text3);}
+.gchg{display:flex;align-items:center;gap:6px;font-size:12px;}
+
+/* ── 모달 ── */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;}
+.mo.on{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-lg{width:560px;}
+.mo-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.mo-title{font-size:15px;font-weight:700;}
+.mo-x{cursor:pointer;color:var(--text3);font-size:18px;line-height:1;}
+.mo-x:hover{color:var(--text);}
+.mo-ft{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.esec{font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.07em;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.esec:first-child{margin-top:0;}
+.cl-box{background:var(--bg3);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--text2);max-height:90px;overflow-y:auto;}
+.cl-row{padding:3px 0;border-bottom:1px solid var(--border);}
+.cl-row:last-child{border-bottom:none;}
+.cl-d{color:var(--text3);margin-right:5px;}
+.cl-c{color:var(--accent);}
+
+.empty{text-align:center;padding:40px;color:var(--text3);}
+
+@media(max-width:900px){
+  .ov-grid{grid-template-columns:repeat(2,1fr);}
+  .pm-lay{grid-template-columns:1fr;}
+  .act-stats{grid-template-columns:1fr 1fr;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="logo">STC</div>
+    <div>
+      <div style="font-size:16px;font-weight:700">설비 등급 관리 시스템</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:1px">Equipment Grade Management · STC Co., Ltd.</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:11px;color:var(--text3)" id="lastUpd">─</span>
+    <button class="btn" onclick="openMo('moScore')">📝 점수 기준 설정</button>
+    <button class="btn btn-p" onclick="doRecalc()">🔄 등급 재산출</button>
+  </div>
+</header>
+
+<div class="tab-nav">
+  <div class="tb on" onclick="goTab('ov')">📊 등급 현황</div>
+  <div class="tb" onclick="goTab('list')">📋 설비 목록</div>
+  <div class="tb" onclick="goTab('pm')">🔧 PM 플랜</div>
+  <div class="tb" onclick="goTab('act')">⚡ 액션 트래커</div>
+  <div class="tb" onclick="goTab('hist')">📈 등급 이력</div>
+</div>
+
+<main>
+
+<!-- ① 등급 현황 -->
+<div class="tc on" id="tc-ov">
+  <div class="ov-grid" id="ovCards"></div>
+  <div class="sh">
+    <div class="st">🚨 워스트 설비 순위 (전체)</div>
+    <select class="btn" id="worstN" onchange="renderWorst()">
+      <option value="5">하위 5대</option><option value="10">하위 10대</option>
+      <option value="20">하위 20대</option><option value="999">전체</option>
+    </select>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>순위</th><th>설비명</th><th>유형</th><th>등급</th><th>총점</th><th>연식점수</th><th>이슈점수</th><th>PM 상태</th><th>액션</th></tr></thead>
+      <tbody id="worstBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ② 설비 목록 -->
+<div class="tc" id="tc-list">
+  <div class="fbar">
+    <span style="font-size:11px;color:var(--text2)">필터:</span>
+    <div class="fc on" onclick="fList('all',this)">전체</div>
+    <div class="fc" onclick="fList('dc',this)">D/C</div>
+    <div class="fc" onclick="fList('tp',this)">TP</div>
+    <div class="fc" onclick="fList('fn',this)">전기로</div>
+    <div class="fc" onclick="fList('ac',this)">에어컴프레셔</div>
+    <div class="fc" onclick="fGrade('E',this)">E등급</div>
+    <div class="fc" onclick="fGrade('D',this)">D등급</div>
+    <div class="fc" onclick="fGrade('C',this)">C등급</div>
+    <div class="fc" onclick="fGrade('B',this)">B등급</div>
+    <div class="fc" onclick="fGrade('A',this)">A등급</div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr><th>설비명</th><th>유형</th><th>등급</th><th>총점</th><th>점수 분포</th><th>연식(년)</th><th>월고장</th><th>PM 상태</th><th>관리</th></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ③ PM 플랜 -->
+<div class="tc" id="tc-pm">
+  <div class="pm-stabs">
+    <div class="pm-tb on" onclick="goPmTab('reg')">📝 PM 등록</div>
+    <div class="pm-tb" onclick="goPmTab('gantt')">📅 간트 차트</div>
+    <div class="pm-tb" onclick="goPmTab('done')">✅ 완료 이력 <span class="done-badge" id="doneCnt">0</span></div>
+  </div>
+
+  <!-- PM 등록 -->
+  <div class="pm-sc on" id="pmsc-reg">
+    <div class="pm-lay">
+      <div class="pm-box">
+        <h3>🎯 PM 대상 선정</h3>
+        <div class="ig"><label>설비 유형</label>
+          <select id="pmType" onchange="renderPmWList()">
+            <option value="all">전체</option><option value="dc">D/C</option>
+            <option value="tp">TP</option><option value="fn">전기로</option>
+            <option value="ac">에어컴프레셔</option>
+          </select>
+        </div>
+        <div class="ig2">
+          <div class="ig"><label>시작일</label><input type="date" id="pmS"></div>
+          <div class="ig"><label>종료일</label><input type="date" id="pmE"></div>
+        </div>
+        <div class="ig"><label>담당자</label><input type="text" id="pmWho" placeholder="담당자 이름"></div>
+        <div class="ig"><label>작업 내용</label><input type="text" id="pmDesc" placeholder="예: 정기 오일 교체..."></div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:7px">워스트 목록 (체크 선택)</div>
+        <div id="pmWList"></div>
+        <button class="btn btn-p" style="width:100%;margin-top:8px" onclick="addPm()">📋 PM 등록 → 간트 반영</button>
+      </div>
+      <div class="pm-box">
+        <h3>⬆️ 우선순위 조정 <span style="font-size:11px;color:var(--text3);font-weight:400">드래그로 순서 변경</span></h3>
+        <div id="priList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 간트 -->
+  <div class="pm-sc" id="pmsc-gantt">
+    <div class="gantt-wrap">
+      <div class="g-toolbar">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:700">📅 PM 일정표</span>
+          <div class="g-nav">
+            <button class="g-nbtn" onclick="gMove(-1)">‹</button>
+            <span class="g-mlbl" id="gLbl">─</span>
+            <button class="g-nbtn" onclick="gMove(1)">›</button>
+          </div>
+          <button class="g-nbtn" onclick="gToday()" style="width:auto;padding:0 8px;font-size:10px">오늘</button>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="g-vbtn on" id="gvM" onclick="gSetView('month',this)">월</button>
+          <button class="g-vbtn" id="gvW" onclick="gSetView('week',this)">주</button>
+          <button class="btn" onclick="exportGanttCSV()">⬇ CSV</button>
+        </div>
+      </div>
+      <div class="g-scroll"><div class="g-inner" id="gInner"><div class="g-empty">PM을 등록하면 간트 차트가 표시됩니다</div></div></div>
+      <div class="g-lgd">
+        <div class="g-li"><div class="g-ld" style="background:#f85149"></div>E등급</div>
+        <div class="g-li"><div class="g-ld" style="background:#f0883e"></div>D등급</div>
+        <div class="g-li"><div class="g-ld" style="background:#e3a825"></div>C등급</div>
+        <div class="g-li"><div class="g-ld" style="background:#79c0ff"></div>B등급</div>
+        <div class="g-li"><div class="g-ld" style="background:#3fb950"></div>A등급</div>
+        <div class="g-li"><div class="g-ld" style="background:#58a6ff;opacity:.5"></div>대기</div>
+        <div class="g-li"><div class="g-ld" style="background:#58a6ff"></div>진행중</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 완료 이력 -->
+  <div class="pm-sc" id="pmsc-done">
+    <div class="sh">
+      <div class="st">✅ 완료된 PM 이력</div>
+      <button class="btn" onclick="exportDoneCSV()">⬇ CSV</button>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>완료일</th><th>설비명</th><th>유형</th><th>등급</th><th>작업 내용</th><th>담당자</th><th>기간</th><th>소요일</th></tr></thead>
+        <tbody id="doneBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 액션 트래커 -->
+<div class="tc" id="tc-act">
+  <div class="act-stats">
+    <div class="act-stat"><div class="astat-n" style="color:var(--ge)" id="aPend">0</div><div class="astat-l">대기 중</div></div>
+    <div class="act-stat"><div class="astat-n" style="color:var(--accent)" id="aProg">0</div><div class="astat-l">진행 중</div></div>
+    <div class="act-stat"><div class="astat-n" style="color:var(--ga)" id="aDone">0</div><div class="astat-l">완료</div></div>
+  </div>
+  <div class="sh"><div class="st">⚡ 액션 목록</div><button class="btn btn-p" onclick="openMo('moAct')">+ 액션 추가</button></div>
+  <div id="actList"></div>
+</div>
+
+<!-- ⑤ 등급 이력 -->
+<div class="tc" id="tc-hist">
+  <div class="sh">
+    <div class="st">📈 등급 변동 이력</div>
+    <select class="btn" id="histF" onchange="renderHist()">
+      <option value="all">전체</option><option value="dc">D/C</option>
+      <option value="tp">TP</option><option value="fn">전기로</option><option value="ac">에어컴프레셔</option>
+    </select>
+  </div>
+  <div class="hist-tl" id="histTl"></div>
+</div>
+
+</main>
+
+<!-- 점수 기준 모달 -->
+<div class="mo" id="moScore">
+  <div class="modal">
+    <div class="mo-hdr"><div class="mo-title">📝 점수 기준 설정</div><span class="mo-x" onclick="closeMo('moScore')">✕</span></div>
+    <div class="esec">연식별 점수</div>
+    <div class="ig2">
+      <div class="ig"><label>1~3년</label><input type="number" id="sa1" value="5"></div>
+      <div class="ig"><label>4~7년</label><input type="number" id="sa2" value="15"></div>
+      <div class="ig"><label>8~12년</label><input type="number" id="sa3" value="25"></div>
+      <div class="ig"><label>13년 이상</label><input type="number" id="sa4" value="35"></div>
+    </div>
+    <div class="esec">월 고장 횟수 점수</div>
+    <div class="ig2">
+      <div class="ig"><label>0회</label><input type="number" id="sf0" value="0"></div>
+      <div class="ig"><label>1~2회</label><input type="number" id="sf1" value="15"></div>
+      <div class="ig"><label>3~5회</label><input type="number" id="sf2" value="25"></div>
+      <div class="ig"><label>6회 이상</label><input type="number" id="sf3" value="35"></div>
+    </div>
+    <div class="esec">등급 구간 상한 총점</div>
+    <div class="ig2">
+      <div class="ig"><label>A등급 상한</label><input type="number" id="sga" value="10"></div>
+      <div class="ig"><label>B등급 상한</label><input type="number" id="sgb" value="25"></div>
+      <div class="ig"><label>C등급 상한</label><input type="number" id="sgc" value="40"></div>
+      <div class="ig"><label>D등급 상한</label><input type="number" id="sgd" value="55"></div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:5px">D 초과 → E등급 자동 적용</div>
+    <div class="mo-ft">
+      <button class="btn" onclick="closeMo('moScore')">취소</button>
+      <button class="btn btn-p" onclick="saveCriteria()">저장 및 재산출</button>
+    </div>
+  </div>
+</div>
+
+<!-- 액션 추가 모달 -->
+<div class="mo" id="moAct">
+  <div class="modal">
+    <div class="mo-hdr"><div class="mo-title">⚡ 액션 추가</div><span class="mo-x" onclick="closeMo('moAct')">✕</span></div>
+    <div class="ig"><label>설비 선택</label><select id="actEqSel"></select></div>
+    <div class="ig"><label>액션 내용</label><input type="text" id="actDesc" placeholder="예: 냉각팬 교체..."></div>
+    <div class="ig2">
+      <div class="ig"><label>담당자</label><input type="text" id="actWho"></div>
+      <div class="ig"><label>완료 예정일</label><input type="date" id="actDue"></div>
+    </div>
+    <div class="ig"><label>완료 시 등급 조정</label>
+      <select id="actAdj">
+        <option value="0">변경 없음</option>
+        <option value="1">1등급 향상 (E→D)</option>
+        <option value="2">2등급 향상 (E→C)</option>
+      </select>
+    </div>
+    <div class="mo-ft">
+      <button class="btn" onclick="closeMo('moAct')">취소</button>
+      <button class="btn btn-p" onclick="addAct()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- PM 수정 모달 -->
+<div class="mo" id="moPmEdit">
+  <div class="modal modal-lg">
+    <div class="mo-hdr">
+      <div>
+        <div class="mo-title">🔧 PM 일정 수정</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px" id="ePmSub">─</div>
+      </div>
+      <span class="mo-x" onclick="closeMo('moPmEdit')">✕</span>
+    </div>
+    <div class="esec">📅 일정</div>
+    <div class="ig2">
+      <div class="ig"><label>시작일</label><input type="date" id="eS"></div>
+      <div class="ig"><label>종료일</label><input type="date" id="eE"></div>
+    </div>
+    <div class="esec">📝 작업 정보</div>
+    <div class="ig2">
+      <div class="ig"><label>담당자</label><input type="text" id="eWho"></div>
+      <div class="ig"><label>상태</label>
+        <select id="eSt">
+          <option value="pending">대기</option>
+          <option value="progress">진행중</option>
+          <option value="done">완료 (완료 이력으로 이동)</option>
+        </select>
+      </div>
+    </div>
+    <div class="ig"><label>작업 내용</label><input type="text" id="eDesc"></div>
+    <div class="esec">⬆️ 우선순위</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">
+      현재: <b id="eCurPri">─</b> &nbsp;→&nbsp; 변경:
+      <select id="ePri" style="padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;margin-left:4px"></select>
+    </div>
+    <div class="esec">💬 변경 사유</div>
+    <div class="ig"><input type="text" id="eRsn" placeholder="예: 부품 수급 지연, 인력 부족..."></div>
+    <div class="esec">🕓 변경 이력</div>
+    <div class="cl-box" id="eLog"><div style="color:var(--text3)">변경 이력 없음</div></div>
+    <div class="mo-ft">
+      <button class="btn" style="color:var(--ge);border-color:rgba(248,81,73,.4)" onclick="deletePm()">삭제</button>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="closeMo('moPmEdit')">취소</button>
+      <button class="btn btn-p" onclick="savePmEdit()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════
+//  기준 & 상수
+// ════════════════════════════
+let SC = {
+  age:  [{m:3,s:5},{m:7,s:15},{m:12,s:25},{m:999,s:35}],
+  flt:  [{m:0,s:0},{m:2,s:15},{m:5, s:25},{m:999,s:35}],
+  cut:  [10,25,40,55]
+};
+
+const TI = {
+  dc:{lbl:'D/C',       icon:'⚙️',cls:'card-dc'},
+  tp:{lbl:'TP',        icon:'🔨',cls:'card-tp'},
+  fn:{lbl:'전기로',    icon:'🔥',cls:'card-fn'},
+  ac:{lbl:'에어컴프레셔',icon:'💨',cls:'card-ac'},
+};
+const GCL = {A:'gA',B:'gB',C:'gC',D:'gD',E:'gE'};
+const GCOL = {A:'#3fb950',B:'#79c0ff',C:'#e3a825',D:'#f0883e',E:'#f85149'};
+
+// ════════════════════════════
+//  설비 데이터
+// ════════════════════════════
+const EQ = [
+  {id:'DC01',name:'D/C 1', t:'dc',age:15,mf:5,last:'2026-06-18',pm:'대기'},
+  {id:'DC02',name:'D/C 2', t:'dc',age:12,mf:4,last:'2026-06-15',pm:'진행'},
+  {id:'DC03',name:'D/C 3', t:'dc',age:10,mf:3,last:'2026-06-10',pm:'없음'},
+  {id:'DC04',name:'D/C 4', t:'dc',age:8, mf:3,last:'2026-06-08',pm:'없음'},
+  {id:'DC05',name:'D/C 5', t:'dc',age:7, mf:2,last:'2026-05-30',pm:'없음'},
+  {id:'DC06',name:'D/C 6', t:'dc',age:7, mf:2,last:'2026-05-25',pm:'없음'},
+  {id:'DC07',name:'D/C 7', t:'dc',age:6, mf:1,last:'2026-05-20',pm:'없음'},
+  {id:'DC08',name:'D/C 8', t:'dc',age:6, mf:1,last:'2026-05-15',pm:'없음'},
+  {id:'DC09',name:'D/C 9', t:'dc',age:5, mf:1,last:'2026-05-10',pm:'없음'},
+  {id:'DC10',name:'D/C 10',t:'dc',age:5, mf:0,last:'2026-04-20',pm:'없음'},
+  {id:'DC11',name:'D/C 11',t:'dc',age:5, mf:0,last:'2026-04-15',pm:'없음'},
+  {id:'DC12',name:'D/C 12',t:'dc',age:4, mf:2,last:'2026-06-01',pm:'없음'},
+  {id:'DC13',name:'D/C 13',t:'dc',age:4, mf:1,last:'2026-05-28',pm:'없음'},
+  {id:'DC14',name:'D/C 14',t:'dc',age:4, mf:0,last:'2026-04-10',pm:'없음'},
+  {id:'DC15',name:'D/C 15',t:'dc',age:3, mf:1,last:'2026-05-05',pm:'없음'},
+  {id:'DC16',name:'D/C 16',t:'dc',age:3, mf:0,last:'2026-03-20',pm:'없음'},
+  {id:'DC17',name:'D/C 17',t:'dc',age:3, mf:0,last:'2026-03-15',pm:'없음'},
+  {id:'DC18',name:'D/C 18',t:'dc',age:2, mf:1,last:'2026-05-01',pm:'없음'},
+  {id:'DC19',name:'D/C 19',t:'dc',age:2, mf:0,last:'2026-02-10',pm:'없음'},
+  {id:'DC20',name:'D/C 20',t:'dc',age:2, mf:0,last:'2026-02-01',pm:'없음'},
+  {id:'DC21',name:'D/C 21',t:'dc',age:1, mf:0,last:'2026-01-15',pm:'없음'},
+  {id:'DC22',name:'D/C 22',t:'dc',age:1, mf:0,last:'2026-01-10',pm:'없음'},
+  {id:'DC23',name:'D/C 23',t:'dc',age:1, mf:0,last:'2026-01-05',pm:'없음'},
+  {id:'TP01',name:'TP 1',t:'tp',age:8,mf:3,last:'2026-06-05',pm:'없음'},
+  {id:'TP02',name:'TP 2',t:'tp',age:5,mf:1,last:'2026-05-10',pm:'없음'},
+  {id:'TP03',name:'TP 3',t:'tp',age:3,mf:0,last:'2026-03-01',pm:'없음'},
+  {id:'TP04',name:'TP 4',t:'tp',age:1,mf:0,last:'2026-01-20',pm:'없음'},
+  {id:'FR01',name:'전기로 1',t:'fn',age:10,mf:2,last:'2026-06-01',pm:'완료'},
+  {id:'FR02',name:'전기로 2',t:'fn',age:7, mf:1,last:'2026-05-15',pm:'없음'},
+  {id:'FR03',name:'전기로 3',t:'fn',age:3, mf:0,last:'2026-02-20',pm:'없음'},
+  {id:'AC01',name:'에어컴프레셔 1',t:'ac',age:6,mf:2,last:'2026-05-20',pm:'없음'},
+  {id:'AC02',name:'에어컴프레셔 2',t:'ac',age:4,mf:0,last:'2026-03-10',pm:'없음'},
+];
+
+let ACTS = [
+  {id:1,eqId:'DC01',eqName:'D/C 1', desc:'냉각팬 교체',assignee:'김태국',due:'2026-07-10',status:'progress',adj:1,prog:60},
+  {id:2,eqId:'DC02',eqName:'D/C 2', desc:'오일씰 교체',assignee:'이종명',due:'2026-07-15',status:'pending', adj:1,prog:0},
+  {id:3,eqId:'FR01',eqName:'전기로 1',desc:'히터 교체', assignee:'박현수',due:'2026-07-05',status:'done',   adj:2,prog:100},
+];
+
+let HIST = [
+  {date:'2026-06-15',eqId:'DC03',eqName:'D/C 3', t:'dc',before:'E',after:'D',reason:'냉각팬 교체 완료'},
+  {date:'2026-06-01',eqId:'FR01',eqName:'전기로 1',t:'fn',before:'D',after:'C',reason:'히터 교체 완료'},
+  {date:'2026-05-20',eqId:'DC01',eqName:'D/C 1', t:'dc',before:'C',after:'E',reason:'연속 고장 — 등급 하향'},
+];
+
+let PMP  = []; // 진행 중 PM
+let DONE = []; // 완료 PM
+let gBase = new Date();
+let gMode = 'month';
+let editId = null;
+let dragId = null;
+
+// ════════════════════════════
+//  점수·등급 계산
+// ════════════════════════════
+function ageS(a){ for(const x of SC.age) if(a<=x.m) return x.s; return 35; }
+function fltS(f){ for(const x of SC.flt) if(f<=x.m) return x.s; return 35; }
+function grade(t){ const[a,b,c,d]=SC.cut; if(t<=a)return'A'; if(t<=b)return'B'; if(t<=c)return'C'; if(t<=d)return'D'; return'E'; }
+function sColor(t){ if(t<=10)return GCOL.A; if(t<=25)return GCOL.B; if(t<=40)return GCOL.C; if(t<=55)return GCOL.D; return GCOL.E; }
+
+function recalc(){
+  EQ.forEach(e=>{ e.as=ageS(e.age); e.fs=fltS(e.mf); e.tot=e.as+e.fs; e.grade=grade(e.tot); });
+}
+
+function pmHtml(s){
+  if(s==='대기') return '<span class="pill p-wait">대기</span>';
+  if(s==='진행') return '<span class="pill p-go">진행중</span>';
+  if(s==='완료') return '<span class="pill p-done">완료</span>';
+  return '<span class="p-none">─</span>';
+}
+
+// ════════════════════════════
+//  렌더링
+// ════════════════════════════
+function renderAll(){
+  renderOvCards(); renderWorst(); renderList('all',null);
+  renderPmWList(); renderPriList(); renderActs(); renderHist(); renderDone();
+}
+
+function renderOvCards(){
+  const el=document.getElementById('ovCards');
+  el.innerHTML=['dc','tp','fn','ac'].map(t=>{
+    const eqs=EQ.filter(e=>e.t===t);
+    const cnt={A:0,B:0,C:0,D:0,E:0};
+    eqs.forEach(e=>cnt[e.grade]++);
+    const worst=[...eqs].sort((a,b)=>b.tot-a.tot)[0];
+    const total=eqs.length||1;
+    const segs=['E','D','C','B','A'].filter(g=>cnt[g]>0)
+      .map(g=>`<div class="hbar-seg" style="width:${(cnt[g]/total*100).toFixed(1)}%;background:${GCOL[g]}" title="${g}: ${cnt[g]}대"></div>`).join('');
+    const lgd=['E','D','C','B','A'].filter(g=>cnt[g]>0)
+      .map(g=>`<div class="lgd-item"><div class="lgd-dot" style="background:${GCOL[g]}"></div>${g}: ${cnt[g]}대</div>`).join('');
+    return `<div class="eq-card ${TI[t].cls}">
+      <div class="card-hdr"><span class="card-name">${TI[t].icon} ${TI[t].lbl}</span><span class="card-cnt">${eqs.length}대</span></div>
+      <div class="hbar">${segs||'<div style="width:100%;background:var(--bg3)"></div>'}</div>
+      <div class="hbar-lgd">${lgd}</div>
+      ${worst?`<div class="worst-tag">🚨 최하: ${worst.name} (${worst.grade}등급)</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderWorst(){
+  const n=parseInt(document.getElementById('worstN').value);
+  const rows=[...EQ].sort((a,b)=>b.tot-a.tot).slice(0,n);
+  document.getElementById('worstBody').innerHTML=rows.map((e,i)=>`
+    <tr>
+      <td style="color:var(--text2);font-weight:700">#${i+1}</td>
+      <td><b>${e.name}</b></td><td>${TI[e.t].lbl}</td>
+      <td><span class="gb ${GCL[e.grade]}">${e.grade}</span></td>
+      <td><b>${e.tot}</b>점</td><td>${e.as}점</td><td>${e.fs}점</td>
+      <td>${pmHtml(e.pm)}</td>
+      <td><span class="alink" onclick="openActFor('${e.id}','${e.name}')">액션 추가</span></td>
+    </tr>`).join('')||'<tr><td colspan="9" class="empty">데이터 없음</td></tr>';
+}
+
+function renderList(t,g){
+  let list=EQ;
+  if(t!=='all') list=list.filter(e=>e.t===t);
+  if(g)         list=list.filter(e=>e.grade===g);
+  document.getElementById('listBody').innerHTML=list.map(e=>`
+    <tr>
+      <td><b>${e.name}</b></td><td>${TI[e.t].lbl}</td>
+      <td><span class="gb ${GCL[e.grade]}">${e.grade}</span></td>
+      <td><b>${e.tot}</b></td>
+      <td><div class="sbar"><div class="sbar-bg"><div class="sbar-fill" style="width:${Math.min(100,e.tot/70*100).toFixed(1)}%;background:${sColor(e.tot)}"></div></div><span class="snum">${e.tot}</span></div></td>
+      <td>${e.age}년</td><td>${e.mf}회/월</td>
+      <td>${pmHtml(e.pm)}</td>
+      <td><span class="alink" onclick="openActFor('${e.id}','${e.name}')">+ 액션</span></td>
+    </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px">해당 설비 없음</td></tr>';
+}
+
+function fList(t,el){ document.querySelectorAll('.fbar .fc').forEach(c=>c.classList.remove('on')); el.classList.add('on'); renderList(t,null); }
+function fGrade(g,el){ document.querySelectorAll('.fbar .fc').forEach(c=>c.classList.remove('on')); el.classList.add('on'); renderList('all',g); }
+
+// ── PM 워스트 목록
+function renderPmWList(){
+  const t=document.getElementById('pmType').value;
+  let list=[...EQ]; if(t!=='all') list=list.filter(e=>e.t===t);
+  list=list.sort((a,b)=>b.tot-a.tot).slice(0,12);
+  document.getElementById('pmWList').innerHTML=list.map(e=>`
+    <div class="wi" id="wi_${e.id}">
+      <div class="wi-l">
+        <input type="checkbox" id="wc_${e.id}" onchange="toggleWi('${e.id}')">
+        <span class="gb ${GCL[e.grade]}" style="width:20px;height:20px;font-size:10px">${e.grade}</span>
+        <span style="font-size:12px">${e.name}</span>
+      </div>
+      <span style="font-size:11px;color:var(--text2)">${e.tot}점</span>
+    </div>`).join('');
+}
+function toggleWi(id){ const cb=document.getElementById('wc_'+id); document.getElementById('wi_'+id).classList.toggle('sel',cb.checked); }
+
+// ── PM 등록
+function addPm(){
+  const checks=[...document.querySelectorAll('[id^="wc_"]:checked')];
+  if(!checks.length){alert('대상 설비를 선택하세요');return;}
+  const s=document.getElementById('pmS').value,e=document.getElementById('pmE').value;
+  if(!s||!e){alert('시작일과 종료일을 입력하세요');return;}
+  if(s>e){alert('종료일이 시작일보다 빠릅니다');return;}
+  const who=document.getElementById('pmWho').value||'미지정';
+  const desc=document.getElementById('pmDesc').value||'정기 PM';
+  checks.forEach(cb=>{
+    const id=cb.id.replace('wc_','');
+    const eq=EQ.find(x=>x.id===id); if(!eq)return;
+    PMP.push({id:Date.now()+Math.random(),eqId:eq.id,eqName:eq.name,eqGrade:eq.grade,eqType:eq.t,
+      dateStart:s,dateEnd:e,assignee:who,desc,status:'pending',priority:PMP.length+1,log:[]});
+    eq.pm='대기'; cb.checked=false; document.getElementById('wi_'+id)?.classList.remove('sel');
+  });
+  PMP.forEach((p,i)=>p.priority=i+1);
+  renderPriList(); renderAll();
+  alert('PM 등록 완료!');
+  goPmTab('gantt');
+}
+
+// ── 우선순위 목록
+function renderPriList(){
+  const el=document.getElementById('priList');
+  if(!PMP.length){
+    el.innerHTML='<div class="empty" style="padding:24px"><div style="font-size:28px">📋</div><div style="margin-top:8px">PM을 등록하면 여기서 우선순위를 조정할 수 있습니다</div></div>';
+    return;
+  }
+  el.innerHTML=[...PMP].sort((a,b)=>a.priority-b.priority).map((p,i)=>{
+    const nc=i===0?'n1':i===1?'n2':i===2?'n3':'';
+    const sl={pending:'대기',progress:'진행중'};
+    return `<div class="pri-item" draggable="true" data-pid="${p.id}"
+      ondragstart="dsStart(event)" ondragover="dsOver(event)" ondrop="dsDrop(event)"
+      ondragleave="dsLeave(event)" ondragend="dsEnd(event)">
+      <span class="drag-h">⠿</span>
+      <div class="pri-num ${nc}">${i+1}</div>
+      <span class="gb ${GCL[p.eqGrade]}" style="width:20px;height:20px;font-size:10px">${p.eqGrade}</span>
+      <div class="pri-info">
+        <div class="pri-name">${p.eqName}</div>
+        <div class="pri-meta">${p.dateStart}~${p.dateEnd} | ${p.assignee} | ${p.desc}</div>
+      </div>
+      <select class="mini-sel" onchange="chPmSt('${p.id}',this.value)">
+        <option value="pending" ${p.status==='pending'?'selected':''}>대기</option>
+        <option value="progress" ${p.status==='progress'?'selected':''}>진행중</option>
+        <option value="done">완료로 이동 →</option>
+      </select>
+      <span class="pri-rm" onclick="rmPm('${p.id}')">✕</span>
+    </div>`;
+  }).join('');
+}
+
+// 드래그
+function dsStart(e){dragId=e.currentTarget.dataset.pid;e.currentTarget.classList.add('dragging');}
+function dsEnd(e){e.currentTarget.classList.remove('dragging');}
+function dsLeave(e){e.currentTarget.classList.remove('drag-over');}
+function dsOver(e){e.preventDefault();e.currentTarget.classList.add('drag-over');}
+function dsDrop(e){
+  e.preventDefault();e.currentTarget.classList.remove('drag-over');
+  const tid=e.currentTarget.dataset.pid; if(dragId===tid)return;
+  const a=PMP.find(p=>String(p.id)===String(dragId));
+  const b=PMP.find(p=>String(p.id)===String(tid));
+  if(!a||!b)return;
+  const tmp=a.priority;a.priority=b.priority;b.priority=tmp;
+  PMP.sort((a,b)=>a.priority-b.priority).forEach((p,i)=>p.priority=i+1);
+  renderPriList();renderGantt();
+}
+
+function chPmSt(id,st){
+  if(st==='done'){ completePm(String(id)); return; }
+  const p=PMP.find(x=>String(x.id)===String(id)); if(!p)return;
+  p.status=st; renderPriList(); renderGantt();
+}
+function rmPm(id){
+  PMP=PMP.filter(x=>String(x.id)!==String(id));
+  PMP.forEach((p,i)=>p.priority=i+1);
+  renderPriList();renderGantt();
+}
+
+// ── 완료 처리
+function completePm(id){
+  const p=PMP.find(x=>String(x.id)===String(id)); if(!p)return;
+  p.doneDate=fmt(new Date()); p.status='done';
+  DONE.unshift({...p});
+  PMP=PMP.filter(x=>String(x.id)!==String(id));
+  PMP.forEach((x,i)=>x.priority=i+1);
+  const eq=EQ.find(e=>e.id===p.eqId); if(eq)eq.pm='완료';
+  HIST.unshift({date:p.doneDate,eqId:p.eqId,eqName:p.eqName,t:p.eqType,before:p.eqGrade,after:p.eqGrade,reason:'PM 완료: '+p.desc});
+  renderPriList();renderGantt();renderDone();renderAll();
+  goPmTab('done');
+}
+
+// ── 완료 이력 렌더링
+function renderDone(){
+  const cnt=document.getElementById('doneCnt'); if(cnt)cnt.textContent=DONE.length;
+  const tb=document.getElementById('doneBody'); if(!tb)return;
+  if(!DONE.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:30px">완료된 PM이 없습니다</td></tr>';return;}
+  tb.innerHTML=DONE.map(p=>{
+    const days=Math.round((new Date(p.dateEnd+'T00:00:00')-new Date(p.dateStart+'T00:00:00'))/86400000)+1;
+    return `<tr>
+      <td>${p.doneDate}</td><td><b>${p.eqName}</b></td>
+      <td>${TI[p.eqType]?.lbl||p.eqType}</td>
+      <td><span class="gb ${GCL[p.eqGrade]}">${p.eqGrade}</span></td>
+      <td>${p.desc}</td><td>${p.assignee}</td>
+      <td style="color:var(--text2)">${p.dateStart}~${p.dateEnd}</td>
+      <td>${days}일</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 간트
+function fmt(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+function gToday(){gBase=new Date();renderGantt();}
+function gMove(d){ if(gMode==='month') gBase=new Date(gBase.getFullYear(),gBase.getMonth()+d,1); else gBase=new Date(gBase.getTime()+d*7*86400000); renderGantt(); }
+function gSetView(m,el){ gMode=m; document.querySelectorAll('.g-vbtn').forEach(b=>b.classList.remove('on')); el.classList.add('on'); renderGantt(); }
+
+function renderGantt(){
+  const inn=document.getElementById('gInner');
+  const lbl=document.getElementById('gLbl');
+  // 진행중인 PM만 표시
+  const active=PMP.filter(p=>p.status!=='done');
+  if(!active.length){inn.innerHTML='<div class="g-empty">진행 중인 PM이 없습니다<br><span style="font-size:11px;color:var(--text3)">완료된 PM은 ✅ 완료 이력 탭에서 확인하세요</span></div>';lbl.textContent='─';return;}
+
+  const today=new Date();today.setHours(0,0,0,0);
+  let days=[];
+  if(gMode==='month'){
+    const y=gBase.getFullYear(),m=gBase.getMonth();
+    lbl.textContent=y+'.'+String(m+1).padStart(2,'0');
+    const dim=new Date(y,m+1,0).getDate();
+    for(let d=1;d<=dim;d++) days.push(new Date(y,m,d));
+  } else {
+    const st=new Date(gBase); st.setDate(st.getDate()-st.getDay()+1);
+    lbl.textContent=(st.getMonth()+1)+'월 주간';
+    for(let d=0;d<28;d++){const dt=new Date(st);dt.setDate(st.getDate()+d);days.push(dt);}
+  }
+
+  const N=days.length;
+  const todayStr=fmt(today);
+  const dayTs=days.map(d=>d.getTime());
+  const rSTs=dayTs[0], rETs=dayTs[N-1];
+  const sorted=[...active].sort((a,b)=>a.priority-b.priority);
+
+  const hdr=days.map(d=>{
+    const ds=fmt(d),wd=d.getDay();
+    let cls='g-day';
+    if(ds===todayStr)cls+=' today'; else if(wd===0||wd===6)cls+=' wknd';
+    return `<div class="${cls}">${gMode==='month'?d.getDate():(d.getMonth()+1)+'/'+d.getDate()}</div>`;
+  }).join('');
+
+  const rows=sorted.map(p=>{
+    const sCls=p.status==='pending'?'pend':'';
+    const pSTs=new Date(p.dateStart+'T00:00:00').getTime();
+    const pETs=new Date(p.dateEnd+'T00:00:00').getTime();
+    const oSTs=Math.max(pSTs,rSTs), oETs=Math.min(pETs,rETs);
+    let barStyle='display:none';
+    if(oSTs<=oETs){
+      let bi=dayTs.findIndex(t=>t>=oSTs); if(bi<0)bi=0;
+      let ei=dayTs.findIndex(t=>t>=oETs); if(ei<0)ei=N-1;
+      const bw=ei-bi+1;
+      barStyle=`left:${(bi/N*100).toFixed(2)}%;width:${(bw/N*100).toFixed(2)}%;background:${GCOL[p.eqGrade]};`;
+    }
+    const pDays=Math.round((pETs-pSTs)/86400000)+1;
+    const stLbl={pending:'대기',progress:'진행중'}[p.status]||'';
+    const bg=days.map(d=>{
+      const wd=d.getDay(),ds=fmt(d);
+      let cls='g-gcell'; if(wd===0||wd===6)cls+=' wknd'; if(ds===todayStr)cls+=' today-c';
+      return `<div class="${cls}"></div>`;
+    }).join('');
+    return `<div class="g-row">
+      <div class="g-eqlbl">
+        <span class="g-pri" style="background:${GCOL[p.eqGrade]}33;color:${GCOL[p.eqGrade]};border:1px solid ${GCOL[p.eqGrade]}55">#${p.priority}</span>
+        <span class="gb ${GCL[p.eqGrade]}" style="width:20px;height:20px;font-size:10px">${p.eqGrade}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px">${p.eqName}</span>
+        <span class="g-ebtn" onclick="openEditPm('${p.id}')">수정</span>
+      </div>
+      <div class="g-grid">
+        <div class="g-gbg">${bg}</div>
+        <div class="g-barlyr">
+          <div class="g-bar ${sCls}" style="${barStyle}"
+            onclick="openEditPm('${p.id}')"
+            title="${p.eqName} | ${p.desc} | ${p.dateStart}~${p.dateEnd} | ${p.assignee} | ${stLbl}">
+            ${pDays>=3?p.desc:''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  inn.innerHTML=`<div class="g-hdr"><div class="g-eqcol">설비 (우선순위)</div><div class="g-days">${hdr}</div></div>${rows}`;
+}
+
+function exportGanttCSV(){
+  if(!PMP.length){alert('내보낼 데이터가 없습니다');return;}
+  const h=['우선순위','설비명','등급','유형','시작일','종료일','담당자','작업내용','상태'];
+  const r=[...PMP].sort((a,b)=>a.priority-b.priority).map(p=>[p.priority,p.eqName,p.eqGrade,TI[p.eqType]?.lbl||p.eqType,p.dateStart,p.dateEnd,p.assignee,p.desc,{pending:'대기',progress:'진행중'}[p.status]]);
+  dl('\uFEFF'+[h,...r].map(x=>x.join(',')).join('\n'),'PM_플랜_'+fmt(new Date())+'.csv');
+}
+function exportDoneCSV(){
+  if(!DONE.length){alert('완료된 PM이 없습니다');return;}
+  const h=['완료일','설비명','등급','유형','작업내용','담당자','시작일','종료일','소요일'];
+  const r=DONE.map(p=>{const d=Math.round((new Date(p.dateEnd+'T00:00:00')-new Date(p.dateStart+'T00:00:00'))/86400000)+1;return[p.doneDate,p.eqName,p.eqGrade,TI[p.eqType]?.lbl||p.eqType,p.desc,p.assignee,p.dateStart,p.dateEnd,d];});
+  dl('\uFEFF'+[h,...r].map(x=>x.join(',')).join('\n'),'PM_완료이력_'+fmt(new Date())+'.csv');
+}
+function dl(csv,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();}
+
+// ── PM 수정 모달
+function openEditPm(id){
+  const p=PMP.find(x=>String(x.id)===String(id)); if(!p)return;
+  editId=id;
+  document.getElementById('ePmSub').innerHTML=`<span class="gb ${GCL[p.eqGrade]}" style="width:18px;height:18px;font-size:10px;margin-right:4px">${p.eqGrade}</span>${p.eqName} | 현재 #${p.priority}순위`;
+  document.getElementById('eS').value=p.dateStart;
+  document.getElementById('eE').value=p.dateEnd;
+  document.getElementById('eWho').value=p.assignee;
+  document.getElementById('eDesc').value=p.desc;
+  document.getElementById('eSt').value=p.status;
+  document.getElementById('eRsn').value='';
+  document.getElementById('eCurPri').textContent='#'+p.priority;
+  document.getElementById('ePri').innerHTML=PMP.map((_,i)=>`<option value="${i+1}" ${i+1===p.priority?'selected':''}>#${i+1}</option>`).join('');
+  const logEl=document.getElementById('eLog');
+  logEl.innerHTML=p.log?.length?[...p.log].reverse().map(c=>`<div class="cl-row"><span class="cl-d">${c.date}</span><span class="cl-c">${c.summary}</span>${c.reason?' — '+c.reason:''}</div>`).join(''):'<div style="color:var(--text3)">변경 이력 없음</div>';
+  openMo('moPmEdit');
+}
+
+function savePmEdit(){
+  const p=PMP.find(x=>String(x.id)===String(editId)); if(!p)return;
+  const ns=document.getElementById('eS').value,ne=document.getElementById('eE').value;
+  const na=document.getElementById('eWho').value;
+  const nd=document.getElementById('eDesc').value;
+  const nst=document.getElementById('eSt').value;
+  const np=parseInt(document.getElementById('ePri').value);
+  const rsn=document.getElementById('eRsn').value.trim();
+  if(!ns||!ne){alert('날짜를 입력하세요');return;}
+  if(ns>ne){alert('종료일이 시작일보다 빠릅니다');return;}
+  // 변경사항 기록
+  const diffs=[];
+  if(ns!==p.dateStart||ne!==p.dateEnd) diffs.push(`일정: ${p.dateStart}~${p.dateEnd}→${ns}~${ne}`);
+  if(na!==p.assignee) diffs.push(`담당자: ${p.assignee}→${na}`);
+  if(nd!==p.desc) diffs.push(`내용: ${p.desc}→${nd}`);
+  if(nst!==p.status) diffs.push(`상태: ${{pending:'대기',progress:'진행중'}[p.status]}→${{pending:'대기',progress:'진행중',done:'완료'}[nst]}`);
+  if(np!==p.priority) diffs.push(`순위: #${p.priority}→#${np}`);
+  if(diffs.length){
+    if(!p.log)p.log=[];
+    p.log.push({date:new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),summary:diffs.join(' / '),reason:rsn});
+  }
+  if(nst==='done'){
+    p.dateStart=ns;p.dateEnd=ne;p.assignee=na;p.desc=nd;p.status=nst;
+    closeMo('moPmEdit');
+    completePm(String(p.id));
+    return;
+  }
+  if(np!==p.priority){
+    const others=PMP.filter(x=>String(x.id)!==String(editId)).sort((a,b)=>a.priority-b.priority);
+    others.splice(np-1,0,p); others.forEach((x,i)=>x.priority=i+1);
+  }
+  p.dateStart=ns;p.dateEnd=ne;p.assignee=na;p.desc=nd;p.status=nst;
+  const eq=EQ.find(e=>e.id===p.eqId); if(eq)eq.pm=nst==='progress'?'진행':'대기';
+  closeMo('moPmEdit'); renderPriList(); renderGantt(); renderAll();
+}
+
+function deletePm(){
+  if(!confirm('이 PM 항목을 삭제하시겠습니까?'))return;
+  PMP=PMP.filter(x=>String(x.id)!==String(editId));
+  PMP.forEach((p,i)=>p.priority=i+1);
+  closeMo('moPmEdit'); renderPriList(); renderGantt(); renderAll();
+}
+
+// ── 액션
+function renderActs(){
+  const pe=ACTS.filter(a=>a.status==='pending').length;
+  const pr=ACTS.filter(a=>a.status==='progress').length;
+  const dn=ACTS.filter(a=>a.status==='done').length;
+  document.getElementById('aPend').textContent=pe;
+  document.getElementById('aProg').textContent=pr;
+  document.getElementById('aDone').textContent=dn;
+  const sl={pending:'대기 중',progress:'진행 중',done:'완료'};
+  const sc={pending:'p-wait',progress:'p-go',done:'p-done'};
+  const el=document.getElementById('actList');
+  if(!ACTS.length){el.innerHTML='<div class="empty">등록된 액션이 없습니다</div>';return;}
+  el.innerHTML=ACTS.map(a=>{
+    const eq=EQ.find(e=>e.id===a.eqId);
+    const g=eq?eq.grade:'C';
+    return `<div class="act-item">
+      <span class="gb ${GCL[g]}">${g}</span>
+      <div class="ai-info">
+        <div class="ai-title">${a.eqName} — ${a.desc}</div>
+        <div class="ai-meta">담당: ${a.assignee} | 완료예정: ${a.due} | 등급 ${a.adj>0?'+'+a.adj+'단계 향상 예정':'변경없음'}</div>
+      </div>
+      <div class="ai-right">
+        <span class="pill ${sc[a.status]}">${sl[a.status]}</span>
+        <div class="prog-w"><div class="prog-t"><div class="prog-f" style="width:${a.prog}%"></div></div>${a.prog}%</div>
+        ${a.status!=='done'?`<span class="alink" onclick="completeAct(${a.id})">완료 처리</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function completeAct(id){
+  const a=ACTS.find(x=>x.id===id); if(!a)return;
+  a.status='done';a.prog=100;
+  if(a.adj>0){
+    const eq=EQ.find(e=>e.id===a.eqId);
+    if(eq){
+      const gs=['A','B','C','D','E'];
+      const ni=Math.max(0,gs.indexOf(eq.grade)-a.adj);
+      const ng=gs[ni];
+      if(ng!==eq.grade){
+        HIST.unshift({date:fmt(new Date()),eqId:eq.id,eqName:eq.name,t:eq.t,before:eq.grade,after:ng,reason:'액션 완료: '+a.desc});
+        eq.grade=ng;
+      }
+    }
+  }
+  renderAll();
+}
+
+function openActFor(id,name){
+  document.getElementById('actEqSel').innerHTML=`<option value="${id}">${name}</option>`;
+  openMo('moAct');
+}
+function addAct(){
+  const sel=document.getElementById('actEqSel');
+  const desc=document.getElementById('actDesc').value.trim();
+  if(!desc){alert('액션 내용을 입력하세요');return;}
+  ACTS.push({id:Date.now(),eqId:sel.value,eqName:sel.options[sel.selectedIndex].text,
+    desc,assignee:document.getElementById('actWho').value||'미지정',
+    due:document.getElementById('actDue').value||'미정',
+    status:'pending',adj:+document.getElementById('actAdj').value,prog:0});
+  closeMo('moAct'); renderActs(); goTab('act');
+}
+
+// ── 이력
+function renderHist(){
+  const f=document.getElementById('histF').value;
+  let list=HIST; if(f!=='all')list=list.filter(h=>h.t===f);
+  const el=document.getElementById('histTl');
+  if(!list.length){el.innerHTML='<div class="empty">이력 없음</div>';return;}
+  el.innerHTML=list.map(h=>`<div class="hist-item">
+    <div class="hist-hdr"><b>${h.eqName}</b><span class="hist-date">${h.date}</span></div>
+    <div class="gchg">
+      <span class="gb ${GCL[h.before]}" style="width:22px;height:22px;font-size:11px">${h.before}</span>
+      <span style="color:var(--text3)">→</span>
+      <span class="gb ${GCL[h.after]}" style="width:22px;height:22px;font-size:11px">${h.after}</span>
+      <span style="font-size:11px;color:var(--text2);margin-left:8px">${h.reason}</span>
+    </div>
+  </div>`).join('');
+}
+
+// ── 유틸
+function openMo(id){document.getElementById(id).classList.add('on');}
+function closeMo(id){document.getElementById(id).classList.remove('on');}
+document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('on');}));
+
+function goTab(name){
+  document.querySelectorAll('.tc').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tc-'+name).classList.add('on');
+  const tabs=['ov','list','pm','act','hist'];
+  document.querySelectorAll('.tb')[tabs.indexOf(name)]?.classList.add('on');
+}
+function goPmTab(name){
+  document.querySelectorAll('.pm-sc').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.pm-tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('pmsc-'+name).classList.add('on');
+  const tabs=['reg','gantt','done'];
+  document.querySelectorAll('.pm-tb')[tabs.indexOf(name)]?.classList.add('on');
+  if(name==='gantt') renderGantt();
+  if(name==='done')  renderDone();
+}
+
+function saveCriteria(){
+  SC.age=[{m:3,s:+document.getElementById('sa1').value},{m:7,s:+document.getElementById('sa2').value},{m:12,s:+document.getElementById('sa3').value},{m:999,s:+document.getElementById('sa4').value}];
+  SC.flt=[{m:0,s:+document.getElementById('sf0').value},{m:2,s:+document.getElementById('sf1').value},{m:5,s:+document.getElementById('sf2').value},{m:999,s:+document.getElementById('sf3').value}];
+  SC.cut=[+document.getElementById('sga').value,+document.getElementById('sgb').value,+document.getElementById('sgc').value,+document.getElementById('sgd').value];
+  closeMo('moScore'); doRecalc();
+}
+function doRecalc(){
+  recalc(); renderAll();
+  document.getElementById('lastUpd').textContent='마지막 산출: '+new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+
+// ════════════════════════════
+//  샘플 PM 데이터
+// ════════════════════════════
+function initSamplePM(){
+  const off=(d,len)=>{
+    const s=new Date(),e=new Date();
+    s.setDate(s.getDate()+d); e.setDate(e.getDate()+d+len-1);
+    return{s:fmt(s),e:fmt(e)};
+  };
+  recalc(); // 등급 먼저 계산
+  const w=[...EQ].sort((a,b)=>b.tot-a.tot);
+
+  // 활성 PM (진행중)
+  PMP=[
+    {id:1001,eqId:w[0].id,eqName:w[0].name,eqGrade:w[0].grade,eqType:w[0].t,dateStart:off(1,4).s,dateEnd:off(1,4).e,assignee:'이종명',desc:'냉각계통 점검 및 오일 교체',status:'progress',priority:1,log:[{date:'06.10 09:00',summary:'일정 변경',reason:'부품 수급 지연'}]},
+    {id:1002,eqId:w[1].id,eqName:w[1].name,eqGrade:w[1].grade,eqType:w[1].t,dateStart:off(6,3).s,dateEnd:off(6,3).e,assignee:'김태국',desc:'전기계통 점검 및 소모품 교체',status:'pending',priority:2,log:[]},
+    {id:1003,eqId:w[2].id,eqName:w[2].name,eqGrade:w[2].grade,eqType:w[2].t,dateStart:off(10,5).s,dateEnd:off(10,5).e,assignee:'박현수',desc:'정기 PM — 오일씰 교체',status:'pending',priority:3,log:[]},
+    {id:1004,eqId:w[3].id,eqName:w[3].name,eqGrade:w[3].grade,eqType:w[3].t,dateStart:off(16,3).s,dateEnd:off(16,3).e,assignee:'이종명',desc:'히터 점검 및 단자 청소',status:'pending',priority:4,log:[]},
+    {id:1005,eqId:w[4].id,eqName:w[4].name,eqGrade:w[4].grade,eqType:w[4].t,dateStart:off(20,4).s,dateEnd:off(20,4).e,assignee:'김태국',desc:'냉각팬 베어링 교체',status:'pending',priority:5,log:[]},
+    {id:1006,eqId:'AC01',eqName:'에어컴프레셔 1',eqGrade:EQ.find(e=>e.id==='AC01').grade,eqType:'ac',dateStart:off(25,2).s,dateEnd:off(25,2).e,assignee:'박현수',desc:'에어필터 교체 및 드레인 점검',status:'pending',priority:6,log:[]},
+  ];
+  PMP.forEach(p=>{const eq=EQ.find(e=>e.id===p.eqId);if(eq)eq.pm=p.status==='progress'?'진행':'대기';});
+
+  // 완료 PM (샘플 1건)
+  const doneEq=EQ.find(e=>e.id==='FR01');
+  DONE=[{
+    id:1007,eqId:'FR01',eqName:'전기로 1',eqGrade:doneEq?doneEq.grade:'C',eqType:'fn',
+    dateStart:off(-8,3).s,dateEnd:off(-8,3).e,
+    assignee:'이종명',desc:'히터 교체 완료',status:'done',priority:7,
+    doneDate:off(-5,1).s,log:[{date:'06.01 08:30',summary:'상태→완료',reason:'예정대로 완료'}]
+  }];
+}
+
+// ════════════════════════════
+//  초기 실행
+// ════════════════════════════
+initSamplePM();
+document.getElementById('actEqSel').innerHTML=EQ.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+renderAll();
+renderGantt();
+renderDone();
+goTab('ov');
+document.getElementById('lastUpd').textContent='마지막 산출: '+new Date().toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+</script>
+</body>
+</html>
