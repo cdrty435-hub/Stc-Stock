@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC System Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #f0f2f5;
+  font-family: 'Inter','Sarabun',sans-serif;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  background: #1e3a5f;
+  padding: 20px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.logo-icon {
+  width: 44px; height: 44px; background: #4f8ef7;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.logo-text { color: #fff; }
+.logo-text .main { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+.logo-text .sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.header-right { color: #94a3b8; font-size: 12px; text-align: right; }
+.header-right .date { font-size: 14px; color: #e2e8f0; font-weight: 600; }
+
+/* ── MAIN ── */
+.main { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+/* ── SECTION ── */
+.section { margin-bottom: 36px; }
+.section-title {
+  font-size: 13px; font-weight: 700; color: #6b7280;
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 14px; padding-left: 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px; background: #d1d5db;
+}
+
+/* ── CARD GRID ── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── CARD ── */
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all .2s;
+  text-decoration: none;
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.1);
+  border-color: #93c5fd;
+}
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+}
+.card.blue::before   { background: #2563eb; }
+.card.green::before  { background: #16a34a; }
+.card.red::before    { background: #dc2626; }
+.card.purple::before { background: #7c3aed; }
+.card.orange::before { background: #ea580c; }
+.card.teal::before   { background: #0891b2; }
+.card.gray::before   { background: #6b7280; }
+
+.card-icon { font-size: 32px; margin-bottom: 12px; }
+.card-title {
+  font-size: 15px; font-weight: 700; color: #1f2937;
+  margin-bottom: 4px;
+}
+.card-title-th {
+  font-size: 12px; color: #6b7280; margin-bottom: 10px;
+}
+.card-desc {
+  font-size: 12px; color: #6b7280; line-height: 1.6;
+  margin-bottom: 14px;
+}
+.card-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-pc   { background: #dbeafe; color: #1d4ed8; }
+.badge-phone{ background: #d1fae5; color: #065f46; }
+.badge-both { background: #ede9fe; color: #5b21b6; }
+
+.card-arrow {
+  position: absolute; right: 16px; bottom: 16px;
+  font-size: 18px; color: #d1d5db;
+  transition: all .2s;
+}
+.card:hover .card-arrow { color: #2563eb; transform: translateX(3px); }
+
+/* ── ADD CARD ── */
+.card-add {
+  background: #f9fafb;
+  border: 2px dashed #d1d5db;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 160px;
+  color: #9ca3af;
+  font-size: 13px; text-align: center;
+  cursor: default;
+}
+.card-add .add-icon { font-size: 28px; margin-bottom: 8px; }
+
+/* ── FOOTER ── */
+.footer {
+  text-align: center; padding: 24px;
+  font-size: 12px; color: #9ca3af;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 20px;
+}
+
+/* ── RESPONSIVE ── */
+@media(max-width: 600px){
+  .card-grid { grid-template-columns: 1fr; }
+  .header { padding: 14px 16px; }
+  .main { padding: 20px 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo-icon">⚙️</div>
+    <div class="logo-text">
+      <div class="main">STC System Portal</div>
+      <div class="sub">STC Co., Ltd. — Phanat Nikhom, Chon Buri</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="date" id="dateDisplay"></div>
+    <div>ระบบจัดการ STC</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- 설비 관리 -->
+  <div class="section">
+    <div class="section-title">⚙️ 설비 관리 / การจัดการเครื่องจักร</div>
+    <div class="card-grid">
+
+      <a class="card blue" href="https://cdrty435-hub.github.io/stc-dashboard/" target="_blank">
+        <div class="card-icon">📊</div>
+        <div class="card-title">설비 대시보드</div>
+        <div class="card-title-th">แดชบอร์ดเครื่องจักร</div>
+        <div class="card-desc">
+          설비 수리 이력 · 고장 분석<br>
+          KPI · Air Compressor · AI 분석
+        </div>
+        <span class="card-badge badge-pc">💻 PC</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- MN 정비 파트 -->
+  <div class="section">
+    <div class="section-title">🔧 MN 정비 파트 관리 / การจัดการอะไหล่ MN</div>
+    <div class="card-grid">
+
+      <a class="card green" href="https://cdrty435-hub.github.io/Stc-Stock/parts.html" target="_blank">
+        <div class="card-icon">📦</div>
+        <div class="card-title">MN 파트 대시보드</div>
+        <div class="card-title-th">แดชบอร์ดอะไหล่ MN</div>
+        <div class="card-desc">
+          재고현황 · 입출고 이력<br>
+          발주리스트 · PDF 출력
+        </div>
+        <span class="card-badge badge-pc">💻 PC</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card green" href="https://cdrty435-hub.github.io/Stc-Stock/stock_app.html" target="_blank">
+        <div class="card-icon">📱</div>
+        <div class="card-title">MN 입출고 앱</div>
+        <div class="card-title-th">แอปรับ-จ่ายอะไหล่ MN</div>
+        <div class="card-desc">
+          QR 스캔 · IN 입고 · OUT 출고<br>
+          CANCEL 취소 · 기록 조회
+        </div>
+        <span class="card-badge badge-phone">📱 핸드폰</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- DC 다이캐스팅 파트 -->
+  <div class="section">
+    <div class="section-title">🏭 DC 다이캐스팅 파트 관리 / การจัดการอะไหล่ DC</div>
+    <div class="card-grid">
+
+      <a class="card red" href="https://cdrty435-hub.github.io/Stc-Stock/dc_parts.html" target="_blank">
+        <div class="card-icon">📦</div>
+        <div class="card-title">DC 파트 대시보드</div>
+        <div class="card-title-th">แดชบอร์ดอะไหล่ DC</div>
+        <div class="card-desc">
+          재고현황 · 입출고 이력<br>
+          발주리스트 · PDF 출력
+        </div>
+        <span class="card-badge badge-pc">💻 PC</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card red" href="https://cdrty435-hub.github.io/Stc-Stock/dc_stock.html" target="_blank">
+        <div class="card-icon">📱</div>
+        <div class="card-title">DC 입출고 앱</div>
+        <div class="card-title-th">แอปรับ-จ่ายอะไหล่ DC</div>
+        <div class="card-desc">
+          QR 스캔 · IN 입고 · OUT 출고<br>
+          CANCEL 취소 · 기록 조회
+        </div>
+        <span class="card-badge badge-phone">📱 핸드폰</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- 수출 관리 -->
+  <div class="section">
+    <div class="section-title">📦 수출 관리 / การจัดการส่งออก</div>
+    <div class="card-grid">
+
+      <a class="card purple" href="https://cdrty435-hub.github.io/STC_Export_Loading_List/" target="_blank">
+        <div class="card-icon">🚢</div>
+        <div class="card-title">수출 로딩 QR 시스템</div>
+        <div class="card-title-th">ระบบ QR การโหลดสินค้าส่งออก</div>
+        <div class="card-desc">
+          BOX QR 스캔 · 선적 현황<br>
+          대시보드 · 실적 비교
+        </div>
+        <span class="card-badge badge-both">💻📱 PC / 핸드폰</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- 구글 시트 -->
+  <div class="section">
+    <div class="section-title">📊 구글 시트 / Google Sheets</div>
+    <div class="card-grid">
+
+      <a class="card teal" href="https://docs.google.com/spreadsheets/d/1qulfkCzreWyEYvocZaMi9oZzhSSi2FqjHsuOsE92Ulc/edit?gid=345261701#gid=345261701" target="_blank">
+        <div class="card-icon">📋</div>
+        <div class="card-title">설비 수리 이력 시트</div>
+        <div class="card-title-th">ชีตประวัติการซ่อมเครื่องจักร</div>
+        <div class="card-desc">
+          설비 수리 기록 · 고장 이력<br>
+          설비 대시보드 연동
+        </div>
+        <span class="card-badge badge-pc">📊 Google Sheets</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card teal" href="https://docs.google.com/spreadsheets/d/1via6R3BV182ak26rosBEYqJL1G3lQuncKJsOdel5mnE/edit?gid=173938609#gid=173938609" target="_blank">
+        <div class="card-icon">📋</div>
+        <div class="card-title">MN 정비 파트 시트</div>
+        <div class="card-title-th">ชีตอะไหล่ MN</div>
+        <div class="card-desc">
+          PARTS_MASTER · IN · OUT<br>
+          MN 파트 대시보드 연동
+        </div>
+        <span class="card-badge badge-pc">📊 Google Sheets</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card teal" href="https://docs.google.com/spreadsheets/d/17K7rVOAFD7z6Drh7_6Xg_KcFtACNFtRoiFYfbjwxNlY/edit?gid=1184751975#gid=1184751975" target="_blank">
+        <div class="card-icon">📋</div>
+        <div class="card-title">DC 다이캐스팅 파트 시트</div>
+        <div class="card-title-th">ชีตอะไหล่ DC</div>
+        <div class="card-desc">
+          PARTS_MASTER · IN · OUT<br>
+          DC 파트 대시보드 연동
+        </div>
+        <span class="card-badge badge-pc">📊 Google Sheets</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card teal" href="https://docs.google.com/spreadsheets/d/105deagWiVaTXphwcw36gnONdG9yn8RhUWsyAJwzAbP8/edit?gid=1121388000#gid=1121388000" target="_blank">
+        <div class="card-icon">📋</div>
+        <div class="card-title">수출 로딩 시트</div>
+        <div class="card-title-th">ชีตการโหลดสินค้าส่งออก</div>
+        <div class="card-desc">
+          PLAN · Scan Data · PALLET_LOG<br>
+          수출 QR 시스템 연동
+        </div>
+        <span class="card-badge badge-pc">📊 Google Sheets</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- 개발 진행중 -->
+  <div class="section">
+    <div class="section-title">🚧 개발 진행중 / กำลังพัฒนา</div>
+    <div class="card-grid">
+
+      <a class="card gray" href="https://cdrty435-hub.github.io/Stc-Stock/equipment_grade_v3.html" target="_blank">
+        <div class="card-icon">⭐</div>
+        <div class="card-title">설비 등급 관리</div>
+        <div class="card-title-th">การจัดการเกรดเครื่องจักร</div>
+        <div class="card-desc">
+          설비 A~E 등급 · PM 간트차트<br>
+          PM 이력 · 등급 기준 설정
+        </div>
+        <span class="card-badge" style="background:#f3f4f6;color:#6b7280">🚧 진행중</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <a class="card gray" href="https://cdrty435-hub.github.io/Stc-Stock/gantt-dashboard.html" target="_blank">
+        <div class="card-icon">📅</div>
+        <div class="card-title">프로젝트 간트 대시보드</div>
+        <div class="card-title-th">แดชบอร์ด Gantt Chart</div>
+        <div class="card-desc">
+          프로젝트 일정 관리<br>
+          진행률 · 계획 대비 실적
+        </div>
+        <span class="card-badge" style="background:#f3f4f6;color:#6b7280">🚧 진행중</span>
+        <div class="card-arrow">→</div>
+      </a>
+
+      <div class="card-add">
+        <div class="add-icon">➕</div>
+        <div>새 시스템 추가 가능</div>
+        <div style="font-size:11px;margin-top:4px">สามารถเพิ่มระบบใหม่ได้</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  STC Co., Ltd. — System Portal · 모든 시스템은 Google Sheets 연동 · ระบบทั้งหมดเชื่อมต่อ Google Sheets
+</div>
+
+<script>
+// 날짜 표시
+const now = new Date();
+const days = ['일','월','화','수','목','금','토'];
+document.getElementById('dateDisplay').textContent =
+  `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} (${days[now.getDay()]})`;
+</script>
+</body>
+</html>
