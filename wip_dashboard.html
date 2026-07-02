@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC WIP 재고 대시보드</title>
+<style>
+:root{
+  --navy:#0F1B3C; --navy2:#1E3A8A;
+  --fac1:#1D4ED8; --mat:#15803D; --deb:#16A34A;
+  --shot:#22C55E; --heat:#4ADE80; --impreg:#7C3AED;
+  --pack:#B45309; --fg:#6D28D9; --ship:#0F1B3C;
+  --sadc-bg:#FEF3E8; --shin-bg:#EFF6FF;
+  --border:#E5E7EB; --bg:#F8FAFC;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:#111}
+
+/* ── 헤더 ── */
+.header{background:var(--navy);color:#fff;padding:14px 20px;
+  display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:16px;font-weight:600}
+.header-sub{font-size:11px;color:#93C5FD;margin-top:2px}
+.refresh-btn{background:#1E40AF;color:#fff;border:none;border-radius:8px;
+  padding:7px 14px;font-size:12px;cursor:pointer;font-weight:500}
+.refresh-btn:hover{background:#2563EB}
+.ts{font-size:11px;color:#93C5FD;text-align:right}
+
+/* ── KPI ── */
+.kpi-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 16px;
+  background:#fff;border-bottom:1px solid var(--border)}
+.kpi{background:var(--bg);border-radius:10px;padding:10px 14px;border:0.5px solid var(--border)}
+.kpi-lbl{font-size:11px;color:#6B7280;margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:700;color:var(--navy)}
+
+/* ── 공정 범례 ── */
+.legend{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;
+  background:#fff;border-bottom:1px solid var(--border)}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:11px}
+.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* ── 섹션 ── */
+.section{margin:12px 16px}
+.sec-hdr{border-radius:8px 8px 0 0;padding:8px 14px;font-size:13px;
+  font-weight:600;color:#fff;display:flex;align-items:center;gap:6px}
+.sec-hdr.sadc{background:#92400E}
+.sec-hdr.shin{background:#1D4ED8}
+
+/* ── 테이블 ── */
+.tbl-wrap{overflow-x:auto;border-radius:0 0 8px 8px;border:0.5px solid var(--border)}
+table{border-collapse:collapse;width:100%;font-size:12px;min-width:780px}
+th{padding:7px 8px;text-align:center;font-size:10px;font-weight:600;
+  white-space:nowrap;position:sticky;top:0}
+td{padding:6px 8px;text-align:center;border-bottom:0.5px solid var(--border)}
+td.name{text-align:left;font-weight:500;white-space:nowrap}
+td.model{color:#1D4ED8;font-weight:600}
+.sadc-row td.model{color:#92400E}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even){background:#FAFAFA}
+.sadc-row:nth-child(even){background:#FEF9F3}
+.shin-row:nth-child(even){background:#F0F4FF}
+
+/* ── 재고 셀 ── */
+.stock-cell{border-radius:5px;padding:3px 6px;font-weight:600;font-size:12px;
+  min-width:52px;display:inline-block}
+.zero{color:#D1D5DB;font-weight:400}
+.neg{background:#FEE2E2!important;color:#DC2626!important}
+.dash{color:#E5E7EB;font-size:11px}
+.total-cell{font-weight:700;font-size:13px}
+
+/* ── 로딩/에러 ── */
+.loading{text-align:center;padding:40px;color:#6B7280;font-size:14px}
+.error{background:#FEE2E2;color:#B91C1C;padding:12px 16px;border-radius:8px;
+  margin:16px;font-size:13px}
+
+@media(max-width:600px){
+  .kpi-bar{grid-template-columns:repeat(2,1fr)}
+  .kpi-val{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="h1-wrap" style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:20px">🏭</span>
+      <div>
+        <h1>STC WIP 재고 대시보드</h1>
+        <div class="header-sub">위치별 실시간 재고 현황  ·  TRANSFERS 연동</div>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <button class="refresh-btn" onclick="loadData()">🔄 새로고침</button>
+    <div class="ts" id="ts">-</div>
+  </div>
+</div>
+
+<div class="kpi-bar">
+  <div class="kpi">
+    <div class="kpi-lbl">전체 품목</div>
+    <div class="kpi-val" id="k-total">-</div>
+  </div>
+  <div class="kpi" style="background:#DBEAFE">
+    <div class="kpi-lbl" style="color:#1D4ED8">FAC1 재고 품목</div>
+    <div class="kpi-val" style="color:#1D4ED8" id="k-fac1">-</div>
+  </div>
+  <div class="kpi" style="background:#EDE9FE">
+    <div class="kpi-lbl" style="color:#6D28D9">FG 완성품 품목</div>
+    <div class="kpi-val" style="color:#6D28D9" id="k-fg">-</div>
+  </div>
+  <div class="kpi" style="background:#D1FAE5">
+    <div class="kpi-lbl" style="color:#15803D">선적 완료 품목</div>
+    <div class="kpi-val" style="color:#15803D" id="k-ship">-</div>
+  </div>
+</div>
+
+<div class="legend">
+  <span style="font-size:11px;color:#6B7280;margin-right:4px;line-height:22px">공정:</span>
+  <div class="leg-item"><div class="leg-dot" style="background:#1D4ED8"></div>FAC1 DC</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#15803D"></div>Mat</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#16A34A"></div>Deburring</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#22C55E"></div>Shot</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#4ADE80"></div>Heat/Mach</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#7C3AED"></div>Impreg</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#B45309"></div>Wait Packing</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#6D28D9"></div>FG</div>
+  <div class="leg-item"><div class="leg-dot" style="background:#0F1B3C"></div>선적OUT</div>
+</div>
+
+<div id="main"><div class="loading">⏳ 데이터 로딩 중...</div></div>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx2EEj7Hx0_pQB4lqGsW0DbC3KiQFcp0jRRgkf2Vxt3fLXGmV5VvrKN57DeUj19VuVp/exec';
+
+const LOC_STYLE = {
+  FAC1_DC:   {bg:'#1D4ED8',txt:'#fff'},
+  FAC2_MAT:  {bg:'#15803D',txt:'#fff'},
+  FAC2_DEB:  {bg:'#16A34A',txt:'#fff'},
+  FAC2_SHOT: {bg:'#22C55E',txt:'#166534'},
+  FAC2_HEAT: {bg:'#4ADE80',txt:'#166534'},
+  FAC2_IMPREG:{bg:'#7C3AED',txt:'#fff'},
+  FAC2_PACK: {bg:'#B45309',txt:'#fff'},
+  FAC2_FG:   {bg:'#6D28D9',txt:'#fff'},
+  SHIP_OUT:  {bg:'#0F1B3C',txt:'#fff'},
+};
+const LOC_KEYS = ['FAC1_DC','FAC2_MAT','FAC2_DEB','FAC2_SHOT',
+                  'FAC2_HEAT','FAC2_IMPREG','FAC2_PACK','FAC2_FG','SHIP_OUT'];
+const LOC_SHORT = {
+  FAC1_DC:'FAC1\nDC', FAC2_MAT:'Mat', FAC2_DEB:'Deb',
+  FAC2_SHOT:'Shot', FAC2_HEAT:'Heat', FAC2_IMPREG:'Impreg',
+  FAC2_PACK:'Pack', FAC2_FG:'FG', SHIP_OUT:'선적\nOUT'
+};
+
+function fmt(n){ return n===0?'0':Number(n).toLocaleString(); }
+
+function stockCell(loc, val, hasImpreg){
+  if (loc==='FAC2_IMPREG' && !hasImpreg)
+    return '<td><span class="dash">—</span></td>';
+  const s = LOC_STYLE[loc];
+  const cls = val<0 ? 'neg' : val===0 ? 'zero' : '';
+  const style = val>0 ? `background:${s.bg};color:${s.txt}` : '';
+  return `<td><span class="stock-cell ${cls}" style="${style}">${fmt(val)}</span></td>`;
+}
+
+function buildTable(items, rowClass){
+  const impreg_models = ['CT','CN 8','SHAFT'];
+  const hdrs = LOC_KEYS.map(k=>`<th style="background:${LOC_STYLE[k].bg};color:${LOC_STYLE[k].txt}">${LOC_SHORT[k].replace('\n','<br>')}</th>`).join('');
+  const rows = items.map(it=>{
+    const hasImpreg = it.cust==='SHINANN' && impreg_models.includes(it.model);
+    const cells = LOC_KEYS.map(k=>stockCell(k, it.stock[k]||0, hasImpreg)).join('');
+    const tot = it.stock.TOTAL||0;
+    const totCls = tot>0?'total-cell':'zero';
+    return `<tr class="${rowClass}">
+      <td class="name model">${it.model}</td>
+      <td class="name">${it.item}</td>
+      ${cells}
+      <td><b class="${totCls}">${fmt(tot)}</b></td>
+    </tr>`;
+  }).join('');
+
+  return `<table>
+    <thead><tr>
+      <th style="text-align:left;background:#1F2937;color:#9CA3AF">MODEL</th>
+      <th style="text-align:left;background:#1F2937;color:#9CA3AF">ITEM</th>
+      ${hdrs}
+      <th style="background:#374151;color:#fff">WIP합계</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function loadData(){
+  document.getElementById('ts').textContent = '로딩 중...';
+  try {
+    const res  = await fetch(SCRIPT_URL+'?action=getStock');
+    const data = await res.json();
+    if (data.status !== 'ok') throw new Error(data.message);
+
+    const sadc = data.items.filter(i=>i.cust==='SADC');
+    const shin = data.items.filter(i=>i.cust==='SHINANN');
+
+    // KPI
+    document.getElementById('k-total').textContent = data.items.length;
+    document.getElementById('k-fac1').textContent  = data.items.filter(i=>(i.stock.FAC1_DC||0)>0).length;
+    document.getElementById('k-fg').textContent    = data.items.filter(i=>(i.stock.FAC2_FG||0)>0).length;
+    document.getElementById('k-ship').textContent  = data.items.filter(i=>(i.stock.SHIP_OUT||0)>0).length;
+    document.getElementById('ts').textContent = '업데이트: '+data.updated;
+
+    document.getElementById('main').innerHTML = `
+      <div class="section">
+        <div class="sec-hdr sadc">🟤 SADC (인도) — ${sadc.length}개 품목</div>
+        <div class="tbl-wrap">${buildTable(sadc,'sadc-row')}</div>
+      </div>
+      <div class="section">
+        <div class="sec-hdr shin">🔵 SHINANN (한국) — ${shin.length}개 품목</div>
+        <div class="tbl-wrap">${buildTable(shin,'shin-row')}</div>
+      </div>
+    `;
+  } catch(err){
+    document.getElementById('ts').textContent = '에러';
+    document.getElementById('main').innerHTML =
+      `<div class="error">❌ 데이터 로드 실패: ${err.message}<br><br>
+      1. Apps Script에 WIP_doGet.gs 추가 후 웹앱 배포<br>
+      2. wip_dashboard.html의 SCRIPT_URL에 배포 URL 입력</div>`;
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
