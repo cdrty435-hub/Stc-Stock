@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>PCB 연결 관리 대시보드</title>
+<style>
+  :root{
+    --bg:#1c2536; --panel:#26314a; --panel2:#2f3b56; --border:#425072;
+    --text:#f1f4fa; --text2:#c2cce3; --text3:#8b98ba;
+    --box:#3b82f6; --ext:#f59e0b; --power:#f59e0b; --signal:#3b82f6; --comm:#14b8a6;
+    --p1:#ef4444; --p2:#f59e0b; --p3:#22c55e;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px;}
+  header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:16px;}
+  h1{font-size:20px;margin:0;font-weight:600;}
+  .sub{color:var(--text2);font-size:13px;margin-top:4px;}
+  input[type=text]{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;width:220px;}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--text2);margin:14px 0 18px;flex-wrap:wrap;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:22px;}
+  .panel h2{font-size:14px;margin:0 0 14px;color:var(--text2);font-weight:600;letter-spacing:.3px;}
+  svg{width:100%;height:auto;display:block;}
+  .node{cursor:pointer;}
+  .node rect{transition:filter .15s;}
+  .node:hover rect{filter:brightness(1.25);}
+  .ntitle{font-size:12.5px;font-weight:600;fill:#fff;}
+  .nsub{font-size:10px;fill:#cbd5e1;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:var(--text2);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  td{padding:7px 10px;border-bottom:1px solid #1f2c47;vertical-align:top;}
+  tr:hover td{background:#334165;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+  .badge.p1{background:#3f1d1d;color:#fca5a5;}
+  .badge.p2{background:#3f2f13;color:#fcd34d;}
+  .badge.p3{background:#123420;color:#86efac;}
+  .badge.empty{background:#22304a;color:var(--text3);}
+  .tag{font-size:10.5px;padding:1px 7px;border-radius:5px;background:#22304a;color:var(--text2);}
+  .toolbar{display:flex;gap:8px;margin-bottom:14px;}
+  .tab{background:var(--panel2);border:1px solid var(--border);color:var(--text2);padding:7px 14px;border-radius:8px;font-size:12.5px;cursor:pointer;}
+  .tab.active{background:var(--comm);color:#022;border-color:var(--comm);}
+  .hidden{display:none;}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px;width:420px;max-width:92vw;max-height:85vh;overflow:auto;}
+  .modal h3{margin:0 0 14px;font-size:16px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11.5px;color:var(--text2);margin-bottom:4px;}
+  .field input,.field select,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:7px;font-size:13px;font-family:inherit;}
+  .field textarea{resize:vertical;min-height:50px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  button{border:none;border-radius:7px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600;}
+  .btn-save{background:var(--comm);color:#022;}
+  .btn-cancel{background:var(--panel2);color:var(--text2);border:1px solid var(--border);}
+  .btn-add{background:var(--panel2);color:var(--text2);border:1px solid var(--border);font-size:12px;padding:6px 12px;}
+  .empty-note{color:var(--text3);font-style:italic;}
+  .save-toast{position:fixed;bottom:20px;right:20px;background:var(--comm);color:#022;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;z-index:60;}
+  .save-toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>PCB 연결 관리 대시보드 <span style="font-weight:400;font-size:13px;color:var(--text3)">/ แดชบอร์ดจัดการการเชื่อมต่อ PCB</span></h1>
+      <div class="sub">Box 내부/외부 PCB 구조 · 전원 · 시그널 연결 통합 관리 / โครงสร้าง PCB ภายใน-ภายนอกกล่อง และการเชื่อมต่อไฟ-สัญญาณ</div>
+    </div>
+    <input type="text" id="search" placeholder="PCB 이름/ID 검색... / ค้นหาชื่อ/ID PCB">
+  </header>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--box)"></span>Box 내부 / ภายในกล่อง</span>
+    <span><span class="dot" style="background:var(--ext)"></span>Box 외부 / ภายนอกกล่อง</span>
+    <span><span class="dot" style="background:var(--p1)"></span>우선순위 1(먼저 확인) / ลำดับ 1 (ตรวจก่อน)</span>
+    <span><span class="dot" style="background:var(--p2)"></span>우선순위 2 / ลำดับ 2</span>
+    <span><span class="dot" style="background:var(--p3)"></span>우선순위 3 / ลำดับ 3</span>
+  </div>
+
+  <div class="panel">
+    <h2>전체 연결도 (클릭하여 상세 편집) / แผนผังการเชื่อมต่อทั้งหมด (คลิกเพื่อแก้ไข)</h2>
+    <svg id="diagram" viewBox="0 0 700 470"></svg>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <div class="tab active" data-tab="pcb">PCB 전체 목록 / รายการ PCB</div>
+      <div class="tab" data-tab="conn">전원/시그널 연결 목록 / รายการเชื่อมต่อไฟ/สัญญาณ</div>
+    </div>
+
+    <div id="tab-pcb">
+      <table>
+        <thead><tr>
+          <th>ID</th><th>이름 / ชื่อ</th><th>위치 / ตำแหน่ง</th><th>역할 / หน้าที่</th><th>전원 / ไฟ</th><th>신호타입 / ชนิดสัญญาณ</th><th>우선순위 / ลำดับ</th><th>수리이력 / ประวัติซ่อม</th><th>비고 / หมายเหตุ</th>
+        </tr></thead>
+        <tbody id="pcbTableBody"></tbody>
+      </table>
+    </div>
+
+    <div id="tab-conn" class="hidden">
+      <div style="margin-bottom:10px;"><button class="btn-add" onclick="addConnection()">+ 연결 추가 / เพิ่มการเชื่อมต่อ</button></div>
+      <table>
+        <thead><tr>
+          <th>FROM</th><th>FROM핀</th><th>TO</th><th>TO핀</th><th>구분 / ประเภท</th><th>사양 / สเปค</th><th>정상값 / ค่าปกติ</th><th>비고 / หมายเหตุ</th>
+        </tr></thead>
+        <tbody id="connTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="modalOverlay" class="overlay hidden">
+  <div class="modal" id="modalBox"></div>
+</div>
+<div class="save-toast" id="toast">저장되었습니다 / บันทึกแล้ว</div>
+
+<script>
+const PCB_LIST_KEY = 'pcb-list';
+const CONN_LIST_KEY = 'conn-list';
+
+const defaultPcbs = [
+  {id:'PCB4', name:'', location:'Box 내부', parent:'', role:'', power:'', signalType:'시그널(직렬)', connector:'', priority:'2', lastCheck:'', notes:'Box 내 시작단', x:65, y:60, repairs:[]},
+  {id:'PCB3', name:'', location:'Box 내부', parent:'PCB4', role:'', power:'', signalType:'시그널(직렬)', connector:'', priority:'2', lastCheck:'', notes:'', x:65, y:160, repairs:[]},
+  {id:'PCB2', name:'', location:'Box 내부', parent:'PCB3', role:'', power:'', signalType:'시그널+분기', connector:'', priority:'1', lastCheck:'', notes:'외부 3개 PCB로 분기되는 중심 보드 - 최우선 점검', x:65, y:260, repairs:[]},
+  {id:'PCB1', name:'', location:'Box 내부', parent:'PCB2', role:'', power:'', signalType:'시그널(직렬)', connector:'', priority:'1', lastCheck:'', notes:'Box 내 맨 끝단, PCB2로부터 신호 수신', x:65, y:360, repairs:[]},
+  {id:'PCB6', name:'', location:'외부', parent:'PCB2', role:'전원부', power:'', signalType:'전원', connector:'', priority:'1', lastCheck:'', notes:'전원부 - 전압 이상시 전체 라인 영향', x:490, y:90, repairs:[]},
+  {id:'PCB5', name:'', location:'외부', parent:'PCB2', role:'로봇 제어', power:'', signalType:'통신/시그널', connector:'', priority:'1', lastCheck:'', notes:'Robot 연결', x:490, y:220, repairs:[]},
+  {id:'PCB11', name:'', location:'외부', parent:'PCB2', role:'', power:'', signalType:'', connector:'', priority:'3', lastCheck:'', notes:'3차 연결', x:490, y:350, repairs:[]},
+];
+
+const defaultConns = [
+  {id:'C001', from:'PCB4', fromPin:'', to:'PCB3', toPin:'', type:'시그널', spec:'', color:'', normal:'', notes:''},
+  {id:'C002', from:'PCB3', fromPin:'', to:'PCB2', toPin:'', type:'시그널', spec:'', color:'', normal:'', notes:''},
+  {id:'C003', from:'PCB2', fromPin:'', to:'PCB1', toPin:'', type:'시그널', spec:'', color:'', normal:'', notes:''},
+  {id:'C004', from:'PCB2', fromPin:'', to:'PCB6', toPin:'', type:'전원', spec:'', color:'', normal:'', notes:'전원부 라인'},
+  {id:'C005', from:'PCB2', fromPin:'', to:'PCB5', toPin:'', type:'통신', spec:'', color:'', normal:'', notes:'Robot 연결'},
+  {id:'C006', from:'PCB2', fromPin:'', to:'PCB11', toPin:'', type:'', spec:'', color:'', normal:'', notes:'3차 연결'},
+];
+
+let pcbs = {};
+let conns = {};
+
+function toast(){
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1400);
+}
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(PCB_LIST_KEY);
+    if(!raw) throw new Error('empty');
+    const ids = JSON.parse(raw);
+    ids.forEach(id=>{
+      const r = localStorage.getItem('pcb:'+id);
+      if(r) pcbs[id] = JSON.parse(r);
+    });
+    if(Object.keys(pcbs).length === 0) throw new Error('empty');
+  }catch(e){
+    pcbs = {};
+    defaultPcbs.forEach(p=>pcbs[p.id]=p);
+    savePcbList();
+    defaultPcbs.forEach(p=>localStorage.setItem('pcb:'+p.id, JSON.stringify(p)));
+  }
+  try{
+    const raw = localStorage.getItem(CONN_LIST_KEY);
+    if(!raw) throw new Error('empty');
+    const ids = JSON.parse(raw);
+    ids.forEach(id=>{
+      const r = localStorage.getItem('conn:'+id);
+      if(r) conns[id] = JSON.parse(r);
+    });
+    if(Object.keys(conns).length === 0) throw new Error('empty');
+  }catch(e){
+    conns = {};
+    defaultConns.forEach(c=>conns[c.id]=c);
+    saveConnList();
+    defaultConns.forEach(c=>localStorage.setItem('conn:'+c.id, JSON.stringify(c)));
+  }
+  renderAll();
+}
+
+function savePcbList(){
+  localStorage.setItem(PCB_LIST_KEY, JSON.stringify(Object.keys(pcbs).length?Object.keys(pcbs):defaultPcbs.map(p=>p.id)));
+}
+function saveConnList(){
+  localStorage.setItem(CONN_LIST_KEY, JSON.stringify(Object.keys(conns).length?Object.keys(conns):defaultConns.map(c=>c.id)));
+}
+function savePcb(p){
+  pcbs[p.id] = p;
+  savePcbList();
+  localStorage.setItem('pcb:'+p.id, JSON.stringify(p));
+  toast();
+  renderAll();
+}
+function saveConn(c){
+  conns[c.id] = c;
+  saveConnList();
+  localStorage.setItem('conn:'+c.id, JSON.stringify(c));
+  toast();
+  renderAll();
+}
+
+function priorityColor(p){
+  return p==='1' ? 'var(--p1)' : p==='2' ? 'var(--p2)' : p==='3' ? 'var(--p3)' : '#475569';
+}
+
+function renderDiagram(){
+  const svg = document.getElementById('diagram');
+  let s = `<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
+
+  const boxW = 170, boxH = 70;
+  s += `<rect x="35" y="25" width="260" height="420" rx="14" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s += `<text x="52" y="45" font-size="12" fill="#8b98ba">Box</text>`;
+
+  const order = ['PCB4','PCB3','PCB2','PCB1'];
+  for(let i=0;i<order.length-1;i++){
+    const a = pcbs[order[i]], b = pcbs[order[i+1]];
+    s += `<line x1="${a.x+boxW/2}" y1="${a.y+boxH}" x2="${b.x+boxW/2}" y2="${b.y}" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow)"/>`;
+  }
+
+  const p2 = pcbs['PCB2'];
+  const elbowX = 380;
+  ['PCB6','PCB5','PCB11'].forEach(id=>{
+    const p = pcbs[id];
+    const fromY = p2.y + boxH/2;
+    const toY = p.y + boxH/2;
+    s += `<path d="M ${p2.x+boxW} ${fromY} L ${elbowX} ${fromY} L ${elbowX} ${toY} L ${p.x} ${toY}" fill="none" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>`;
+  });
+
+  Object.values(pcbs).forEach(p=>{
+    const fill = p.location==='Box 내부' ? 'var(--box)' : 'var(--ext)';
+    s += `<g class="node" onclick="openModal('${p.id}')">
+      <rect x="${p.x}" y="${p.y}" width="${boxW}" height="${boxH}" rx="8" fill="${fill}" opacity="0.18" stroke="${priorityColor(p.priority)}" stroke-width="2"/>
+      <text x="${p.x+boxW/2}" y="${p.y+24}" text-anchor="middle" class="ntitle">${p.id}</text>
+      <text x="${p.x+boxW/2}" y="${p.y+42}" text-anchor="middle" class="nsub">${(p.role||'역할 미입력').slice(0,12)}</text>
+      <text x="${p.x+boxW/2}" y="${p.y+58}" text-anchor="middle" class="nsub">${p.location}</text>
+    </g>`;
+  });
+
+  svg.innerHTML = s;
+}
+
+function renderPcbTable(filter=''){
+  const tbody = document.getElementById('pcbTableBody');
+  tbody.innerHTML = '';
+  Object.values(pcbs)
+    .filter(p => !filter || (p.id+p.name+p.role).toLowerCase().includes(filter.toLowerCase()))
+    .forEach(p=>{
+      const tr = document.createElement('tr');
+      tr.style.cursor='pointer';
+      tr.onclick = ()=>openModal(p.id);
+      const repairCount = (p.repairs||[]).length;
+      tr.innerHTML = `<td>${p.id}</td><td>${p.name||'<span class="empty-note">-</span>'}</td>
+        <td><span class="tag">${p.location}</span></td>
+        <td>${p.role||'<span class="empty-note">미입력</span>'}</td>
+        <td>${p.power||'-'}</td><td>${p.signalType||'-'}</td>
+        <td><span class="badge ${p.priority?'p'+p.priority:'empty'}">${p.priority||'-'}</span></td>
+        <td>${repairCount?`<span class="tag">${repairCount}건</span>`:'<span class="empty-note">-</span>'}</td>
+        <td style="color:var(--text2)">${p.notes||''}</td>`;
+      tbody.appendChild(tr);
+    });
+}
+
+function renderConnTable(){
+  const tbody = document.getElementById('connTableBody');
+  tbody.innerHTML = '';
+  Object.values(conns).forEach(c=>{
+    const tr = document.createElement('tr');
+    tr.style.cursor='pointer';
+    tr.onclick = ()=>openConnModal(c.id);
+    tr.innerHTML = `<td>${c.from}</td><td>${c.fromPin||'-'}</td><td>${c.to}</td><td>${c.toPin||'-'}</td>
+      <td><span class="tag">${c.type||'미지정'}</span></td><td>${c.spec||'-'}</td>
+      <td>${c.normal||'-'}</td><td style="color:var(--text2)">${c.notes||''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderAll(){
+  renderDiagram();
+  renderPcbTable(document.getElementById('search').value);
+  renderConnTable();
+}
+
+function repairListHtml(p){
+  const repairs = p.repairs || [];
+  if(repairs.length === 0) return '<div class="empty-note" style="margin-bottom:10px;">등록된 수리 이력이 없습니다.</div>';
+  return repairs.map((r,i)=>`
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <strong style="font-size:12.5px;">수리${i+1} <span style="color:var(--text3);font-weight:400;">${r.date||''}</span></strong>
+        <button class="btn-cancel" style="padding:3px 9px;font-size:11px;" onclick="deleteRepair('${p.id}',${i})">삭제</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:2px;"><b style="color:var(--text)">증상:</b> ${r.symptom||'-'}</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:2px;"><b style="color:var(--text)">원인분석:</b> ${r.cause||'-'}</div>
+      <div style="font-size:12px;color:var(--text2);"><b style="color:var(--text)">해결방안:</b> ${r.solution||'-'}</div>
+      ${r.worker?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px;">작업자: ${r.worker}</div>`:''}
+    </div>`).join('');
+}
+
+function openModal(id){
+  const p = pcbs[id];
+  const box = document.getElementById('modalBox');
+  box.innerHTML = `
+    <h3>${p.id} 상세 정보 / ข้อมูลรายละเอียด</h3>
+    <div class="field"><label>PCB명 / ชื่อ PCB</label><input id="f_name" value="${p.name||''}"></div>
+    <div class="field"><label>위치 / ตำแหน่ง</label>
+      <select id="f_location">
+        <option ${p.location==='Box 내부'?'selected':''}>Box 내부</option>
+        <option ${p.location==='외부'?'selected':''}>외부</option>
+      </select></div>
+    <div class="field"><label>역할/기능 / หน้าที่</label><input id="f_role" value="${p.role||''}"></div>
+    <div class="field"><label>전원 구분(AC/DC, 전압) / ประเภทไฟ (AC/DC, แรงดัน)</label><input id="f_power" value="${p.power||''}"></div>
+    <div class="field"><label>신호 타입 / ชนิดสัญญาณ</label><input id="f_signalType" value="${p.signalType||''}"></div>
+    <div class="field"><label>커넥터/케이블 규격 / สเปคขั้วต่อ/สายเคเบิล</label><input id="f_connector" value="${p.connector||''}"></div>
+    <div class="field"><label>고장시 확인 우선순위 / ลำดับการตรวจสอบเมื่อเสีย</label>
+      <select id="f_priority">
+        <option value="1" ${p.priority==='1'?'selected':''}>1 (먼저 확인)</option>
+        <option value="2" ${p.priority==='2'?'selected':''}>2</option>
+        <option value="3" ${p.priority==='3'?'selected':''}>3</option>
+      </select></div>
+    <div class="field"><label>최근 점검일 / วันที่ตรวจล่าสุด</label><input type="date" id="f_lastCheck" value="${p.lastCheck||''}"></div>
+    <div class="field"><label>비고/트러블슈팅 팁 / หมายเหตุ/เทคนิคแก้ปัญหา</label><textarea id="f_notes">${p.notes||''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">취소 / ยกเลิก</button>
+      <button class="btn-save" onclick="saveModal('${id}')">저장 / บันทึก</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:16px;">
+      <h3 style="font-size:14px;margin:0 0 10px;">수리 이력 (원인분석 및 해결방안) / ประวัติการซ่อม (วิเคราะห์สาเหตุและวิธีแก้)</h3>
+      <div id="repairList">${repairListHtml(p)}</div>
+      <div id="repairForm" style="background:var(--panel2);border:1px dashed var(--border);border-radius:8px;padding:12px;margin-top:10px;">
+        <div class="field"><label>날짜 / วันที่</label><input type="date" id="r_date"></div>
+        <div class="field"><label>증상 / อาการ</label><input id="r_symptom" placeholder="예: 전원 미인가, 통신 두절 등"></div>
+        <div class="field"><label>원인분석 / วิเคราะห์สาเหตุ</label><textarea id="r_cause" placeholder="확인한 원인"></textarea></div>
+        <div class="field"><label>해결방안 / วิธีแก้ไข</label><textarea id="r_solution" placeholder="조치 내용"></textarea></div>
+        <div class="field"><label>작업자(선택) / ผู้ปฏิบัติงาน (ไม่บังคับ)</label><input id="r_worker"></div>
+        <button class="btn-save" style="width:100%;" onclick="addRepair('${id}')">+ 수리 이력 추가 / เพิ่มประวัติการซ่อม</button>
+      </div>
+    </div>`;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function addRepair(id){
+  const p = pcbs[id];
+  if(!p.repairs) p.repairs = [];
+  const entry = {
+    date: document.getElementById('r_date').value,
+    symptom: document.getElementById('r_symptom').value,
+    cause: document.getElementById('r_cause').value,
+    solution: document.getElementById('r_solution').value,
+    worker: document.getElementById('r_worker').value,
+  };
+  if(!entry.symptom && !entry.cause && !entry.solution){ return; }
+  p.repairs.push(entry);
+  savePcb(p);
+  openModal(id);
+}
+
+function deleteRepair(id, idx){
+  const p = pcbs[id];
+  p.repairs.splice(idx,1);
+  savePcb(p);
+  openModal(id);
+}
+
+function saveModal(id){
+  const p = {...pcbs[id]};
+  p.name = document.getElementById('f_name').value;
+  p.location = document.getElementById('f_location').value;
+  p.role = document.getElementById('f_role').value;
+  p.power = document.getElementById('f_power').value;
+  p.signalType = document.getElementById('f_signalType').value;
+  p.connector = document.getElementById('f_connector').value;
+  p.priority = document.getElementById('f_priority').value;
+  p.lastCheck = document.getElementById('f_lastCheck').value;
+  p.notes = document.getElementById('f_notes').value;
+  savePcb(p);
+  closeModal();
+}
+
+function openConnModal(id){
+  const c = conns[id];
+  const box = document.getElementById('modalBox');
+  const pcbOptions = Object.keys(pcbs).map(k=>`<option ${c.from===k?'selected':''}>${k}</option>`).join('');
+  const pcbOptionsTo = Object.keys(pcbs).map(k=>`<option ${c.to===k?'selected':''}>${k}</option>`).join('');
+  box.innerHTML = `
+    <h3>연결 상세: ${c.from} → ${c.to} / รายละเอียดการเชื่อมต่อ</h3>
+    <div class="field"><label>FROM PCB</label><select id="c_from">${pcbOptions}</select></div>
+    <div class="field"><label>FROM 커넥터/핀 / ขั้วต่อ/พิน (ต้นทาง)</label><input id="c_fromPin" value="${c.fromPin||''}"></div>
+    <div class="field"><label>TO PCB</label><select id="c_to">${pcbOptionsTo}</select></div>
+    <div class="field"><label>TO 커넥터/핀 / ขั้วต่อ/พิน (ปลายทาง)</label><input id="c_toPin" value="${c.toPin||''}"></div>
+    <div class="field"><label>구분 / ประเภท</label>
+      <select id="c_type">
+        <option ${c.type==='전원'?'selected':''}>전원</option>
+        <option ${c.type==='시그널'?'selected':''}>시그널</option>
+        <option ${c.type==='통신'?'selected':''}>통신</option>
+      </select></div>
+    <div class="field"><label>전압/전류 사양 / สเปคแรงดัน/กระแส</label><input id="c_spec" value="${c.spec||''}"></div>
+    <div class="field"><label>케이블 색상 / สีสายเคเบิล</label><input id="c_color" value="${c.color||''}"></div>
+    <div class="field"><label>정상값(전압/신호 범위) / ค่าปกติ (แรงดัน/สัญญาณ)</label><input id="c_normal" value="${c.normal||''}"></div>
+    <div class="field"><label>비고 / หมายเหตุ</label><textarea id="c_notes">${c.notes||''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">취소 / ยกเลิก</button>
+      <button class="btn-save" onclick="saveConnModal('${id}')">저장 / บันทึก</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+function saveConnModal(id){
+  const c = {...conns[id]};
+  c.from = document.getElementById('c_from').value;
+  c.fromPin = document.getElementById('c_fromPin').value;
+  c.to = document.getElementById('c_to').value;
+  c.toPin = document.getElementById('c_toPin').value;
+  c.type = document.getElementById('c_type').value;
+  c.spec = document.getElementById('c_spec').value;
+  c.color = document.getElementById('c_color').value;
+  c.normal = document.getElementById('c_normal').value;
+  c.notes = document.getElementById('c_notes').value;
+  saveConn(c);
+  closeModal();
+}
+
+function addConnection(){
+  const nid = 'C' + String(Object.keys(conns).length+1).padStart(3,'0');
+  const c = {id:nid, from:'PCB2', fromPin:'', to:'PCB1', toPin:'', type:'시그널', spec:'', color:'', normal:'', notes:''};
+  conns[nid] = c;
+  saveConnList();
+  openConnModal(nid);
+}
+
+function closeModal(){
+  document.getElementById('modalOverlay').classList.add('hidden');
+}
+
+document.getElementById('search').addEventListener('input', e=>renderPcbTable(e.target.value));
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-pcb').classList.toggle('hidden', t.dataset.tab!=='pcb');
+    document.getElementById('tab-conn').classList.toggle('hidden', t.dataset.tab!=='conn');
+  });
+});
+
+loadData();
+</script>
+</body>
+</html>
