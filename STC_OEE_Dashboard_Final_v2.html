@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STC OEE 대시보드</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { 
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 32px; margin-bottom: 10px; }
+        .controls {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        label { font-weight: 600; color: white; }
+        select, button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        select { min-width: 150px; }
+        button { 
+            background: #ff6b6b;
+            color: white;
+            font-weight: 600;
+        }
+        button:hover { background: #ff5252; }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #2196F3;
+        }
+
+        .gauge-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .gauge-card {
+            background: white;
+            padding: 30px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .gauge-label { 
+            font-size: 14px; 
+            font-weight: 600; 
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .gauge-target {
+            font-size: 12px; 
+            color: #999;
+            margin-bottom: 20px;
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 5px 10px;
+            border-radius: 3px;
+        }
+        .gauge-canvas {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 10px;
+        }
+        .gauge-label-bottom {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 { margin-bottom: 15px; color: #333; font-size: 16px; }
+
+        .data-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+            font-size: 12px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover { background: #f9f9f9; }
+
+        .summary-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .summary-item-label { font-size: 12px; color: #999; margin-bottom: 10px; }
+        .summary-item-value { font-size: 28px; font-weight: bold; color: #2196F3; }
+
+        .kpi-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #2196F3;
+        }
+        .kpi-label { font-size: 12px; color: #999; text-transform: uppercase; margin-bottom: 10px; }
+        .kpi-value { font-size: 36px; font-weight: bold; margin-bottom: 10px; }
+        .kpi-target { font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏭 STC OEE 대시보드</h1>
+            <p>설비 종합효율 실시간 모니터링</p>
+            <div class="controls">
+                <div class="control-group">
+                    <label>범위:</label>
+                    <select id="scopeSelect">
+                        <option value="all">전체 (주말포함)</option>
+                        <option value="regular">정규만 (특근제외)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>주차:</label>
+                    <select id="weekSelect">
+                        <option value="W27">W27 (2026-06-24~06-30)</option>
+                    </select>
+                </div>
+                <button onclick="exportPDF()">📄 PDF 다운로드</button>
+            </div>
+        </header>
+
+        <!-- 1. 목표 대비 실적 (W27) - 커스텀 게이지 -->
+        <div class="section-title">📊 1. 목표 대비 실적 (W27)</div>
+        <div class="gauge-container">
+            <div class="gauge-card">
+                <div class="gauge-label">A (가동률)</div>
+                <div class="gauge-target">Target: 89%</div>
+                <canvas id="gauge-a" class="gauge-canvas"></canvas>
+                <div class="gauge-label-bottom">(W27 실적)</div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-label">P (성능)</div>
+                <div class="gauge-target">Target: 99%</div>
+                <canvas id="gauge-p" class="gauge-canvas"></canvas>
+                <div class="gauge-label-bottom">(W27 실적)</div>
+            </div>
+            <div class="gauge-card">
+                <div class="gauge-label">Q (품질)</div>
+                <div class="gauge-target">Target: 96.5%</div>
+                <canvas id="gauge-q" class="gauge-canvas"></canvas>
+                <div class="gauge-label-bottom">(W27 실적)</div>
+            </div>
+        </div>
+
+        <!-- 2. 5주간 Data 변동 추이 (W23~W27) -->
+        <div class="section-title">📈 2. 5주간 Data 변동 추이 (W23~W27)</div>
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                <h3>KPI PERFORMANCE (W23~W27)</h3>
+                <canvas id="chart-5week"></canvas>
+            </div>
+        </div>
+
+        <!-- 3. Y2026 월별 OEE Trend -->
+        <div class="section-title">📅 3. Y2026 월별 OEE Trend (Dec-25~Jun-26)</div>
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                <h3>KPI PERFORMANCE (Y2026 월별)</h3>
+                <canvas id="chart-monthly"></canvas>
+            </div>
+        </div>
+
+        <!-- 4. 일자별 설비 가동율 (A) Data 내역 -->
+        <div class="section-title">📊 4. 일자별 설비 가동률 (A) Data 내역</div>
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                <h3>A(%) PERFORMANCE - W27</h3>
+                <canvas id="chart-daily-a"></canvas>
+            </div>
+        </div>
+
+        <!-- 추가: 선택 범위의 KPI 카드 -->
+        <div class="section-title">🎯 현재 선택 범위 KPI</div>
+        <div class="kpi-section">
+            <div class="kpi-card">
+                <div class="kpi-label">Availability (가동률)</div>
+                <div class="kpi-value" id="val-a">73.8%</div>
+                <div class="kpi-target">목표: 89%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Performance (성능)</div>
+                <div class="kpi-value" id="val-p">99.7%</div>
+                <div class="kpi-target">목표: 99%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Quality (품질)</div>
+                <div class="kpi-value" id="val-q">90.2%</div>
+                <div class="kpi-target">목표: 96.5%</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">OEE (종합효율)</div>
+                <div class="kpi-value" id="val-oee">66.3%</div>
+                <div class="kpi-target">목표: 85%</div>
+            </div>
+        </div>
+
+        <!-- 일별 테이블 -->
+        <div class="section-title">📋 일별 A/P/Q 실적</div>
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>일자</th>
+                        <th>설비</th>
+                        <th>A (%)</th>
+                        <th>P (%)</th>
+                        <th>Q (%)</th>
+                        <th>OEE (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td>2026-06-24</td>
+                        <td>DC1</td>
+                        <td>79.2%</td>
+                        <td>99.7%</td>
+                        <td>90.2%</td>
+                        <td>71.2%</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-25</td>
+                        <td>DC2</td>
+                        <td>87.5%</td>
+                        <td>99.8%</td>
+                        <td>90.5%</td>
+                        <td>78.5%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 종합 서머리 -->
+        <div class="section-title">📊 주차 종합 서머리</div>
+        <div class="summary-section">
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-item-label">총 가동률 (A)</div>
+                    <div class="summary-item-value">73.8%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 성능 (P)</div>
+                    <div class="summary-item-value">99.7%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 품질 (Q)</div>
+                    <div class="summary-item-value">90.2%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 OEE</div>
+                    <div class="summary-item-value">66.3%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chartInstances = {};
+
+        // ===== 고정 데이터 =====
+        
+        // 1. 5주간 데이터 (W23~W27)
+        const weekData = {
+            labels: ['W23', 'W24', 'W25', 'W26', 'W27'],
+            A: [79.2, 74.1, 75.7, 81.1, 73.8],
+            P: [98.1, 98.1, 99.4, 99.5, 99.7],
+            Q: [94.2, 94.3, 91.6, 90.7, 90.1],
+            OEE: [73.2, 69.7, 68.9, 73.2, 66.3]
+        };
+
+        // 2. 월별 데이터 (Y2026)
+        const monthData = {
+            labels: ['Dec-25', 'Jan-26', 'Feb-26', 'Mar-26', 'Apr-26', 'May-26', 'Jun-26'],
+            A: [73.8, 77.6, 77.8, 76.1, 74.1, 77.4, 74.9],
+            P: [83.1, 98.6, 99.5, 98.7, 98.5, 99.2, 99.6],
+            Q: [87.6, 92.3, 93.8, 93.1, 92.2, 93.5, 92.2],
+            OEE: [54.1, 70.9, 72.7, 70.5, 67.9, 71.6, 68.8]
+        };
+
+        // 3. 일자별 A 데이터 (W27)
+        const dailyData = {
+            labels: ['2026-06-24', '2026-06-25', '2026-06-26', '2026-06-27', '2026-06-28', '2026-06-29', '2026-06-30'],
+            A: [74.3, 70.0, 77.5, 75.6, 72.3, 72.3, 73.1],
+            target: 89.0
+        };
+
+        // W27 KPI
+        const w27KPI = {
+            A: { value: 73.8, target: 89 },
+            P: { value: 99.7, target: 99 },
+            Q: { value: 90.2, target: 96.5 }
+        };
+
+        // 커스텀 게이지 그리기
+        function drawGauge(canvasId, value, color) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.clearRect(0, 0, width, height);
+
+            const centerX = width / 2;
+            const centerY = height * 0.7;
+            const radius = Math.min(width, height) * 0.35;
+
+            // 배경 반원
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, 2 * Math.PI);
+            ctx.fill();
+
+            // 진행 반원
+            const percent = value / 100;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, Math.PI, Math.PI + Math.PI * percent);
+            ctx.fill();
+
+            // 포인터 (화살표)
+            const angle = Math.PI + Math.PI * percent;
+            const pointerX = centerX + Math.cos(angle) * (radius + 15);
+            const pointerY = centerY + Math.sin(angle) * (radius + 15);
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(pointerX, pointerY);
+            ctx.lineTo(pointerX - 5, pointerY - 8);
+            ctx.lineTo(pointerX + 5, pointerY - 8);
+            ctx.closePath();
+            ctx.fill();
+
+            // 중앙 값 텍스트
+            ctx.fillStyle = '#2196F3';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(value.toFixed(1) + '%', centerX, centerY - 30);
+
+            // 0%, 100% 라벨
+            ctx.fillStyle = '#999';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('0%', centerX - radius - 20, centerY + 10);
+            ctx.fillText('100%', centerX + radius + 20, centerY + 10);
+        }
+
+        function renderGauges() {
+            drawGauge('gauge-a', w27KPI.A.value, '#2196F3');
+            drawGauge('gauge-p', w27KPI.P.value, '#4CAF50');
+            drawGauge('gauge-q', w27KPI.Q.value, '#FF9800');
+        }
+
+        function renderCharts() {
+            // 2. 5주간 변동 추이
+            if (chartInstances.week) chartInstances.week.destroy();
+            const ctx1 = document.getElementById('chart-5week').getContext('2d');
+            chartInstances.week = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: weekData.labels,
+                    datasets: [
+                        {
+                            label: 'A(%)',
+                            data: weekData.A,
+                            backgroundColor: 'rgba(33, 150, 243, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'P(%)',
+                            data: weekData.P,
+                            backgroundColor: 'rgba(255, 152, 0, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Q(%)',
+                            data: weekData.Q,
+                            backgroundColor: 'rgba(156, 39, 176, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'OEE(%)',
+                            data: weekData.OEE,
+                            borderColor: 'rgba(255, 193, 7, 1)',
+                            borderWidth: 3,
+                            type: 'line',
+                            yAxisID: 'y',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+
+            // 3. 월별 트렌드
+            if (chartInstances.month) chartInstances.month.destroy();
+            const ctx2 = document.getElementById('chart-monthly').getContext('2d');
+            chartInstances.month = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: monthData.labels,
+                    datasets: [
+                        {
+                            label: 'A(%)',
+                            data: monthData.A,
+                            backgroundColor: 'rgba(33, 150, 243, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'P(%)',
+                            data: monthData.P,
+                            backgroundColor: 'rgba(255, 152, 0, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Q(%)',
+                            data: monthData.Q,
+                            backgroundColor: 'rgba(156, 39, 176, 0.8)',
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'OEE(%)',
+                            data: monthData.OEE,
+                            borderColor: 'rgba(255, 193, 7, 1)',
+                            borderWidth: 3,
+                            type: 'line',
+                            yAxisID: 'y',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+
+            // 4. 일자별 A 데이터
+            if (chartInstances.daily) chartInstances.daily.destroy();
+            const ctx3 = document.getElementById('chart-daily-a').getContext('2d');
+            chartInstances.daily = new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: dailyData.labels,
+                    datasets: [
+                        {
+                            label: 'A(%)',
+                            data: dailyData.A,
+                            borderColor: 'rgba(33, 150, 243, 1)',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            borderWidth: 3,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 6,
+                            pointHoverRadius: 8
+                        },
+                        {
+                            label: 'Target (89%)',
+                            data: Array(dailyData.labels.length).fill(dailyData.target),
+                            borderColor: 'rgba(244, 67, 54, 1)',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true, max: 100 }
+                    },
+                    plugins: { legend: { position: 'top' } }
+                }
+            });
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            renderGauges();
+            renderCharts();
+        });
+
+        function exportPDF() {
+            alert('PDF 다운로드는 추후 추가됩니다.');
+        }
+    </script>
+</body>
+</html>
