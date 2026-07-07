@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STC OEE 대시보드</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { 
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 32px; margin-bottom: 10px; }
+        .controls {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        label { font-weight: 600; color: white; }
+        select, button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        select { min-width: 150px; }
+        button { 
+            background: #ff6b6b;
+            color: white;
+            font-weight: 600;
+        }
+        button:hover { background: #ff5252; }
+
+        .kpi-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #2196F3;
+        }
+        .kpi-label { font-size: 12px; color: #999; text-transform: uppercase; margin-bottom: 10px; }
+        .kpi-value { font-size: 36px; font-weight: bold; margin-bottom: 10px; }
+        .kpi-target { font-size: 12px; color: #666; }
+        .kpi-card.success { border-left-color: #4CAF50; }
+        .kpi-card.warning { border-left-color: #FF9800; }
+        .kpi-card.danger { border-left-color: #f44336; }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 { margin-bottom: 15px; color: #333; }
+
+        .data-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+            font-size: 12px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover { background: #f9f9f9; }
+
+        .summary-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .summary-item-label { font-size: 12px; color: #999; margin-bottom: 10px; }
+        .summary-item-value { font-size: 28px; font-weight: bold; color: #2196F3; }
+
+        .success-message { 
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏭 STC OEE 대시보드</h1>
+            <p>설비 종합효율 실시간 모니터링</p>
+            <div class="controls">
+                <div class="control-group">
+                    <label>범위:</label>
+                    <select id="scopeSelect">
+                        <option value="all">전체 (주말포함)</option>
+                        <option value="regular">정규만 (특근제외)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>주차:</label>
+                    <select id="weekSelect">
+                        <option value="W27">W27 (2026-06-24~06-30)</option>
+                    </select>
+                </div>
+                <button onclick="exportPDF()">📄 PDF 다운로드</button>
+            </div>
+        </header>
+
+        <div class="success-message" id="successMsg" style="display:none;">
+            ✅ 데이터가 로드되었습니다!
+        </div>
+
+        <!-- KPI 카드 -->
+        <div class="kpi-section">
+            <div class="kpi-card" id="kpi-a">
+                <div class="kpi-label">Availability (가동률)</div>
+                <div class="kpi-value" id="val-a">73.8%</div>
+                <div class="kpi-target">목표: 89%</div>
+            </div>
+            <div class="kpi-card" id="kpi-p">
+                <div class="kpi-label">Performance (성능)</div>
+                <div class="kpi-value" id="val-p">99.7%</div>
+                <div class="kpi-target">목표: 99%</div>
+            </div>
+            <div class="kpi-card" id="kpi-q">
+                <div class="kpi-label">Quality (품질)</div>
+                <div class="kpi-value" id="val-q">90.2%</div>
+                <div class="kpi-target">목표: 96.5%</div>
+            </div>
+            <div class="kpi-card" id="kpi-oee">
+                <div class="kpi-label">OEE (종합효율)</div>
+                <div class="kpi-value" id="val-oee">66.3%</div>
+                <div class="kpi-target">목표: 85%</div>
+            </div>
+        </div>
+
+        <!-- 차트 -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <h3>📊 일별 OEE 추이</h3>
+                <canvas id="chart-oee"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>📉 Loss Top 5</h3>
+                <canvas id="chart-loss"></canvas>
+            </div>
+        </div>
+
+        <!-- 데이터 테이블 -->
+        <div class="data-table">
+            <h3 style="padding: 20px 20px 0 20px;">📋 일별 A/P/Q 실적</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>일자</th>
+                        <th>설비</th>
+                        <th>A (%)</th>
+                        <th>P (%)</th>
+                        <th>Q (%)</th>
+                        <th>OEE (%)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td>2026-06-24</td>
+                        <td>DC1</td>
+                        <td>79.2%</td>
+                        <td>99.7%</td>
+                        <td>90.2%</td>
+                        <td>71.2%</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-24</td>
+                        <td>DC2</td>
+                        <td>87.5%</td>
+                        <td>99.8%</td>
+                        <td>90.5%</td>
+                        <td>78.5%</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-25</td>
+                        <td>DC1</td>
+                        <td>75.3%</td>
+                        <td>99.6%</td>
+                        <td>89.8%</td>
+                        <td>67.1%</td>
+                    </tr>
+                    <tr>
+                        <td>2026-06-25</td>
+                        <td>DC2</td>
+                        <td>85.2%</td>
+                        <td>99.9%</td>
+                        <td>91.2%</td>
+                        <td>76.8%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 종합 서머리 -->
+        <div class="summary-section">
+            <h3>📈 주차 종합 서머리</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-item-label">총 가동률 (A)</div>
+                    <div class="summary-item-value">73.8%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 성능 (P)</div>
+                    <div class="summary-item-value">99.7%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 품질 (Q)</div>
+                    <div class="summary-item-value">90.2%</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-item-label">총 OEE</div>
+                    <div class="summary-item-value">66.3%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 샘플 데이터 (W27)
+        const RAW_DATA = [
+            {일자: "2026-06-24", 설비명: "DC1", "가동률(A)": 0.792, "성능(P)": 0.997, "품질(Q)": 0.902},
+            {일자: "2026-06-24", 설비명: "DC2", "가동률(A)": 0.875, "성능(P)": 0.998, "품질(Q)": 0.905},
+            {일자: "2026-06-25", 설비명: "DC1", "가동률(A)": 0.753, "성능(P)": 0.996, "품질(Q)": 0.898},
+            {일자: "2026-06-25", 설비명: "DC2", "가동률(A)": 0.852, "성능(P)": 0.999, "품질(Q)": 0.912},
+            {일자: "2026-06-26", 설비명: "DC1", "가동률(A)": 0.742, "성능(P)": 0.997, "품질(Q)": 0.901},
+            {일자: "2026-06-26", 설비명: "DC2", "가동률(A)": 0.863, "성능(P)": 0.997, "품질(Q)": 0.903},
+            {일자: "2026-06-27", 설비명: "DC1", "가동률(A)": 0.758, "성능(P)": 0.998, "품질(Q)": 0.899},
+            {일자: "2026-06-27", 설비명: "DC2", "가동률(A)": 0.871, "성능(P)": 0.998, "품질(Q)": 0.908},
+            {일자: "2026-06-28", 설비명: "DC1", "가동률(A)": 0.735, "성능(P)": 0.996, "품질(Q)": 0.905},
+            {일자: "2026-06-28", 설비명: "DC2", "가동률(A)": 0.855, "성능(P)": 0.999, "품질(Q)": 0.906},
+            {일자: "2026-06-29", 설비명: "DC1", "가동률(A)": 0.741, "성능(P)": 0.997, "품질(Q)": 0.903},
+            {일자: "2026-06-29", 설비명: "DC2", "가동률(A)": 0.858, "성능(P)": 0.997, "품질(Q)": 0.902},
+            {일자: "2026-06-30", 설비명: "DC1", "가동률(A)": 0.756, "성능(P)": 0.998, "품질(Q)": 0.900},
+            {일자: "2026-06-30", 설비명: "DC2", "가동률(A)": 0.862, "성능(P)": 0.998, "품질(Q)": 0.905},
+        ];
+
+        let chartInstances = {};
+
+        function render() {
+            document.getElementById('successMsg').style.display = 'block';
+
+            // KPI 계산
+            const avgA = RAW_DATA.reduce((s, r) => s + r["가동률(A)"], 0) / RAW_DATA.length;
+            const avgP = RAW_DATA.reduce((s, r) => s + r["성능(P)"], 0) / RAW_DATA.length;
+            const avgQ = RAW_DATA.reduce((s, r) => s + r["품질(Q)"], 0) / RAW_DATA.length;
+            const oee = avgA * avgP * avgQ;
+
+            updateKPI('a', avgA * 100, 89);
+            updateKPI('p', avgP * 100, 99);
+            updateKPI('q', avgQ * 100, 96.5);
+            updateKPI('oee', oee * 100, 85);
+
+            renderCharts();
+        }
+
+        function updateKPI(name, value, target) {
+            document.getElementById('val-' + name).textContent = value.toFixed(1) + '%';
+            const card = document.getElementById('kpi-' + name);
+            card.classList.remove('success', 'warning', 'danger');
+            
+            if (value >= target * 0.95) card.classList.add('success');
+            else if (value >= target * 0.85) card.classList.add('warning');
+            else card.classList.add('danger');
+        }
+
+        function renderCharts() {
+            // OEE 추이
+            const dates = [...new Set(RAW_DATA.map(row => row['일자']))];
+            const oeValues = dates.map(date => {
+                const dayData = RAW_DATA.filter(row => row['일자'] === date);
+                const avgA = dayData.reduce((s, r) => s + r['가동률(A)'], 0) / dayData.length;
+                const avgP = dayData.reduce((s, r) => s + r['성능(P)'], 0) / dayData.length;
+                const avgQ = dayData.reduce((s, r) => s + r['품질(Q)'], 0) / dayData.length;
+                return (avgA * avgP * avgQ * 100).toFixed(1);
+            });
+
+            if (chartInstances.oee) chartInstances.oee.destroy();
+            const ctx1 = document.getElementById('chart-oee').getContext('2d');
+            chartInstances.oee = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'OEE (%)',
+                        data: oeValues,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: true } } }
+            });
+
+            // Loss Top 5
+            if (chartInstances.loss) chartInstances.loss.destroy();
+            const ctx2 = document.getElementById('chart-loss').getContext('2d');
+            chartInstances.loss = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['로트마크·사상', '핀파손', '제품소착', '조건변경', '금형교체'],
+                    datasets: [{
+                        data: [9.6, 9.3, 8.7, 7.7, 7.5],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        function exportPDF() {
+            alert('PDF 다운로드는 추후 추가됩니다.');
+        }
+
+        // 초기화
+        document.addEventListener('DOMContentLoaded', render);
+    </script>
+</body>
+</html>
