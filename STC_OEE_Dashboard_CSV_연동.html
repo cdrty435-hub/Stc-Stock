@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STC OEE 대시보드</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container { 
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 32px; margin-bottom: 10px; }
+        .controls {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        label { font-weight: 600; color: white; }
+        select, button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        select { min-width: 150px; }
+        button { 
+            background: #ff6b6b;
+            color: white;
+            font-weight: 600;
+        }
+        button:hover { background: #ff5252; }
+
+        .kpi-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .kpi-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #2196F3;
+        }
+        .kpi-label { font-size: 12px; color: #999; text-transform: uppercase; margin-bottom: 10px; }
+        .kpi-value { font-size: 36px; font-weight: bold; margin-bottom: 10px; }
+        .kpi-target { font-size: 12px; color: #666; }
+        .kpi-card.success { border-left-color: #4CAF50; }
+        .kpi-card.warning { border-left-color: #FF9800; }
+        .kpi-card.danger { border-left-color: #f44336; }
+
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 { margin-bottom: 15px; color: #333; }
+
+        .data-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+            font-size: 12px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover { background: #f9f9f9; }
+
+        .summary-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        .summary-item-label { font-size: 12px; color: #999; margin-bottom: 10px; }
+        .summary-item-value { font-size: 28px; font-weight: bold; color: #2196F3; }
+
+        .loading { text-align: center; padding: 40px; font-size: 18px; color: #666; }
+        .error { 
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏭 STC OEE 대시보드</h1>
+            <p>설비 종합효율 실시간 모니터링</p>
+            <div class="controls">
+                <div class="control-group">
+                    <label>범위:</label>
+                    <select id="scopeSelect">
+                        <option value="all">전체 (주말포함)</option>
+                        <option value="regular">정규만 (특근제외)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>주차:</label>
+                    <select id="weekSelect">
+                        <option value="W27">W27 (2026-06-24~06-30)</option>
+                    </select>
+                </div>
+                <button onclick="exportPDF()">📄 PDF 다운로드</button>
+            </div>
+        </header>
+
+        <div id="loading" class="loading">📊 데이터를 로드 중입니다...</div>
+        <div id="error" style="display:none;" class="error"></div>
+        <div id="content" style="display:none;">
+            <!-- KPI 카드 -->
+            <div class="kpi-section">
+                <div class="kpi-card" id="kpi-a">
+                    <div class="kpi-label">Availability (가동률)</div>
+                    <div class="kpi-value" id="val-a">-</div>
+                    <div class="kpi-target">목표: 89%</div>
+                </div>
+                <div class="kpi-card" id="kpi-p">
+                    <div class="kpi-label">Performance (성능)</div>
+                    <div class="kpi-value" id="val-p">-</div>
+                    <div class="kpi-target">목표: 99%</div>
+                </div>
+                <div class="kpi-card" id="kpi-q">
+                    <div class="kpi-label">Quality (품질)</div>
+                    <div class="kpi-value" id="val-q">-</div>
+                    <div class="kpi-target">목표: 96.5%</div>
+                </div>
+                <div class="kpi-card" id="kpi-oee">
+                    <div class="kpi-label">OEE (종합효율)</div>
+                    <div class="kpi-value" id="val-oee">-</div>
+                    <div class="kpi-target">목표: 85%</div>
+                </div>
+            </div>
+
+            <!-- 차트 -->
+            <div class="charts-section">
+                <div class="chart-card">
+                    <h3>📊 일별 OEE 추이</h3>
+                    <canvas id="chart-oee"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>📉 Loss Top 5</h3>
+                    <canvas id="chart-loss"></canvas>
+                </div>
+            </div>
+
+            <!-- 데이터 테이블 -->
+            <div class="data-table">
+                <h3 style="padding: 20px 20px 0 20px;">📋 일별 A/P/Q 실적</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>설비</th>
+                            <th>A (%)</th>
+                            <th>P (%)</th>
+                            <th>Q (%)</th>
+                            <th>OEE (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <!-- 종합 서머리 -->
+            <div class="summary-section">
+                <h3>📈 주차 종합 서머리</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-item-label">총 가동률 (A)</div>
+                        <div class="summary-item-value" id="sum-a">-</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-item-label">총 성능 (P)</div>
+                        <div class="summary-item-value" id="sum-p">-</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-item-label">총 품질 (Q)</div>
+                        <div class="summary-item-value" id="sum-q">-</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-item-label">총 OEE</div>
+                        <div class="summary-item-value" id="sum-oee">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 핵심: Google Sheets CSV URL =====
+        // Google Apps Script에서 exportCSV() 실행해서 얻은 URL을 아래에 붙여넣으세요
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/export?format=csv&gid=YOUR_GID';
+        
+        let RAW_DATA = [];
+        let chartInstances = {};
+
+        // CSV 자동 로드
+        async function loadCSVData() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+
+                const response = await fetch(CSV_URL);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const csv = await response.text();
+                const lines = csv.split('\n').filter(line => line.trim());
+                
+                if (lines.length < 2) {
+                    throw new Error('CSV에 데이터가 없습니다.');
+                }
+
+                const headers = lines[0].split(',').map(h => h.trim());
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const values = parseCSVLine(lines[i]);
+                    if (values.length === 0) continue;
+
+                    const row = {};
+                    headers.forEach((h, j) => {
+                        row[h] = values[j] || '';
+                    });
+                    RAW_DATA.push(row);
+                }
+
+                console.log(`✓ CSV 로드 완료: ${RAW_DATA.length}행`);
+                render();
+
+            } catch (error) {
+                console.error('CSV 로드 실패:', error);
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = `
+                    ❌ 데이터 로드 실패<br>
+                    에러: ${error.message}<br>
+                    <small>Google Apps Script에서 exportCSV()를 실행해서 CSV URL을 복사했나요?</small>
+                `;
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // CSV 라인 파싱 (쉼표가 포함된 셀 처리)
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let insideQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    insideQuotes = !insideQuotes;
+                } else if (char === ',' && !insideQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        // 메인 렌더링
+        function render() {
+            if (RAW_DATA.length === 0) {
+                document.getElementById('error').innerHTML = '❌ 데이터가 없습니다.';
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            // 데이터 필터링 (범위, 주차)
+            const scope = document.getElementById('scopeSelect').value;
+            const week = document.getElementById('weekSelect').value;
+            
+            let filtered = RAW_DATA.filter(row => {
+                const weekMatch = row['주차'] === week;
+                const scopeMatch = scope === 'all' || row['구분'] === '정규';
+                return weekMatch && scopeMatch;
+            });
+
+            if (filtered.length === 0) {
+                document.getElementById('error').innerHTML = `❌ 선택한 주차(${week})에 데이터가 없습니다.`;
+                return;
+            }
+
+            // KPI 계산
+            const totalA = filtered.reduce((sum, row) => sum + (parseFloat(row['가동률(A)']) || 0), 0) / filtered.length;
+            const avgP = filtered.reduce((sum, row) => sum + (parseFloat(row['성능(P)']) || 0), 0) / filtered.length;
+            const avgQ = filtered.reduce((sum, row) => sum + (parseFloat(row['품질(Q)']) || 0), 0) / filtered.length;
+            const oee = (totalA * avgP * avgQ * 100).toFixed(1);
+
+            updateKPI('a', totalA * 100, 89);
+            updateKPI('p', avgP * 100, 99);
+            updateKPI('q', avgQ * 100, 96.5);
+            updateKPI('oee', oee, 85);
+
+            // 테이블
+            renderTable(filtered);
+
+            // 차트
+            renderCharts(filtered);
+
+            // 서머리
+            document.getElementById('sum-a').textContent = (totalA * 100).toFixed(1) + '%';
+            document.getElementById('sum-p').textContent = (avgP * 100).toFixed(1) + '%';
+            document.getElementById('sum-q').textContent = (avgQ * 100).toFixed(1) + '%';
+            document.getElementById('sum-oee').textContent = oee + '%';
+        }
+
+        function updateKPI(name, value, target) {
+            document.getElementById('val-' + name).textContent = value.toFixed(1) + '%';
+            const card = document.getElementById('kpi-' + name);
+            card.classList.remove('success', 'warning', 'danger');
+            
+            if (value >= target * 0.95) card.classList.add('success');
+            else if (value >= target * 0.85) card.classList.add('warning');
+            else card.classList.add('danger');
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = data.slice(0, 20).map(row => `
+                <tr>
+                    <td>${row['일자']}</td>
+                    <td>${row['설비명']}</td>
+                    <td>${(parseFloat(row['가동률(A)']) * 100).toFixed(1)}%</td>
+                    <td>${(parseFloat(row['성능(P)']) * 100).toFixed(1)}%</td>
+                    <td>${(parseFloat(row['품질(Q)']) * 100).toFixed(1)}%</td>
+                    <td>${(parseFloat(row['가동률(A)']) * parseFloat(row['성능(P)']) * parseFloat(row['품질(Q)']) * 100).toFixed(1)}%</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderCharts(data) {
+            // OEE 추이
+            const dates = [...new Set(data.map(row => row['일자']))];
+            const oeValues = dates.map(date => {
+                const dayData = data.filter(row => row['일자'] === date);
+                const avgA = dayData.reduce((s, r) => s + parseFloat(r['가동률(A)'] || 0), 0) / dayData.length;
+                const avgP = dayData.reduce((s, r) => s + parseFloat(r['성능(P)'] || 0), 0) / dayData.length;
+                const avgQ = dayData.reduce((s, r) => s + parseFloat(r['품질(Q)'] || 0), 0) / dayData.length;
+                return (avgA * avgP * avgQ * 100).toFixed(1);
+            });
+
+            if (chartInstances.oee) chartInstances.oee.destroy();
+            const ctx1 = document.getElementById('chart-oee').getContext('2d');
+            chartInstances.oee = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'OEE (%)',
+                        data: oeValues,
+                        borderColor: '#2196F3',
+                        backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: { 
+                    responsive: true,
+                    plugins: { legend: { display: true } }
+                }
+            });
+
+            // Loss Top 5 (간단한 예시)
+            if (chartInstances.loss) chartInstances.loss.destroy();
+            const ctx2 = document.getElementById('chart-loss').getContext('2d');
+            chartInstances.loss = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['로트마크·사상', '핀파손', '제품소착', '조건변경', '금형교체'],
+                    datasets: [{
+                        data: [9.6, 9.3, 8.7, 7.7, 7.5],
+                        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                    }]
+                },
+                options: { responsive: true }
+            });
+        }
+
+        function exportPDF() {
+            alert('PDF 다운로드는 추후 추가됩니다.');
+        }
+
+        // 이벤트 리스너
+        document.getElementById('scopeSelect').addEventListener('change', render);
+        document.getElementById('weekSelect').addEventListener('change', render);
+
+        // 초기 로드
+        document.addEventListener('DOMContentLoaded', loadCSVData);
+    </script>
+</body>
+</html>
