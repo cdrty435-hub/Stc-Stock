@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>공정 IN/OUT 입력</title>
+<style>
+:root{
+  --navy:#0F1B3C; --bg:#F8FAFC; --border:#E5E7EB;
+  --fac1:#1D4ED8; --mat:#15803D; --deb:#16A34A;
+  --shot:#16A34A; --heat:#4ADE80; --impreg:#7C3AED;
+  --pack:#B45309; --fg:#6D28D9; --ship:#0F1B3C;
+  --in:#1D4ED8; --out:#DC2626;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);min-height:100vh}
+
+/* 헤더 */
+.hdr{background:var(--navy);color:#fff;padding:12px 16px;
+  display:flex;justify-content:space-between;align-items:center}
+.hdr-title{font-size:15px;font-weight:600}
+.hdr-sub{font-size:11px;color:#93C5FD;margin-top:2px}
+.hdr-date{font-size:12px;color:#93C5FD;text-align:right}
+
+/* 섹션 */
+.section{margin:12px 14px;background:#fff;border-radius:12px;
+  border:0.5px solid var(--border);overflow:hidden}
+.sec-hdr{background:#F1F5F9;padding:10px 14px;font-size:12px;
+  font-weight:600;color:#374151;border-bottom:0.5px solid var(--border);
+  display:flex;align-items:center;gap:6px}
+.sec-body{padding:14px}
+
+/* 담당자 */
+.worker-input{width:100%;border:1.5px solid var(--border);border-radius:8px;
+  padding:10px 14px;font-size:14px;outline:none}
+.worker-input:focus{border-color:var(--in)}
+
+/* 공정 선택 */
+.proc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.proc-btn{border:none;border-radius:10px;padding:12px 6px;font-size:11px;
+  font-weight:600;color:#fff;cursor:pointer;text-align:center;
+  transition:transform .1s,opacity .1s;line-height:1.4}
+.proc-btn:active{transform:scale(.95)}
+.proc-btn.selected{box-shadow:0 0 0 3px #fff, 0 0 0 5px currentColor;
+  transform:scale(1.03)}
+.proc-btn.unselected{opacity:.5}
+
+/* QR 스캔 */
+.qr-btn{width:100%;padding:12px;border:2px dashed var(--border);
+  border-radius:10px;background:#F8FAFC;color:#6B7280;font-size:13px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-bottom:10px}
+.qr-btn:active{background:#F1F5F9}
+.qr-preview{display:none;background:#1F2937;border-radius:10px;
+  overflow:hidden;aspect-ratio:1;max-width:280px;margin:0 auto 10px}
+.qr-preview video{width:100%;height:100%;object-fit:cover}
+
+/* 품목 선택 */
+.select-wrap{margin-bottom:10px}
+.select-lbl{font-size:11px;color:#6B7280;font-weight:500;margin-bottom:4px}
+select{width:100%;border:1.5px solid var(--border);border-radius:8px;
+  padding:10px 12px;font-size:13px;outline:none;background:#fff;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%236B7280' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+select:focus{border-color:var(--in)}
+
+/* IN/OUT 입력 */
+.inout-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.inout-box{border-radius:10px;overflow:hidden;border:2px solid transparent}
+.inout-box.in-box{border-color:#DBEAFE}
+.inout-box.out-box{border-color:#FEE2E2}
+.inout-hdr{padding:8px 12px;font-size:12px;font-weight:600;
+  display:flex;align-items:center;gap:5px}
+.in-hdr{background:#DBEAFE;color:var(--in)}
+.out-hdr{background:#FEE2E2;color:var(--out)}
+.inout-body{padding:8px 12px}
+.qty-input{width:100%;border:none;font-size:28px;font-weight:700;
+  text-align:center;outline:none;background:transparent;padding:6px 0}
+.in-qty{color:var(--in)}
+.out-qty{color:var(--out)}
+.qty-btns{display:flex;gap:4px;margin-top:4px}
+.qty-btn{flex:1;border:1px solid var(--border);background:#F8FAFC;
+  border-radius:6px;padding:5px;font-size:11px;cursor:pointer;text-align:center}
+.qty-btn:active{background:#F1F5F9}
+
+/* 저장 버튼 */
+.save-wrap{padding:14px;padding-top:0}
+.save-btn{width:100%;padding:16px;background:var(--navy);color:#fff;
+  border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer}
+.save-btn:active{opacity:.85}
+.save-btn:disabled{background:#9CA3AF;cursor:not-allowed}
+
+/* 결과 메시지 */
+.result{margin:10px 14px;padding:12px 16px;border-radius:10px;
+  font-size:13px;font-weight:500;display:none}
+.result.ok{background:#D1FAE5;color:#15803D;border:1px solid #A7F3D0}
+.result.err{background:#FEE2E2;color:#DC2626;border:1px solid #FCA5A5}
+
+/* 최근 기록 */
+.log-item{padding:10px 14px;border-bottom:0.5px solid var(--border);font-size:12px}
+.log-item:last-child{border-bottom:none}
+.log-top{display:flex;justify-content:space-between;margin-bottom:3px}
+.log-proc{font-weight:600;font-size:11px;padding:2px 7px;border-radius:5px;color:#fff}
+.log-item-name{color:#374151}
+.log-qty{display:flex;gap:8px}
+.log-in{color:var(--in);font-weight:600}
+.log-out{color:var(--out);font-weight:600}
+.log-who{color:#9CA3AF;font-size:11px}
+
+/* 로딩 */
+.loading{text-align:center;padding:24px;color:#9CA3AF;font-size:13px}
+
+@media(min-width:480px){
+  .proc-grid{grid-template-columns:repeat(4,1fr)}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">🏭 공정 IN/OUT 입력</div>
+    <div class="hdr-sub">PROCESS_LOG 자동 기록</div>
+  </div>
+  <div class="hdr-date" id="hdrDate">-</div>
+</div>
+
+<!-- 담당자 -->
+<div class="section">
+  <div class="sec-hdr">👤 담당자</div>
+  <div class="sec-body">
+    <input class="worker-input" type="text" id="worker"
+      placeholder="담당자 이름 입력" value="이종명">
+  </div>
+</div>
+
+<!-- 공정 선택 -->
+<div class="section">
+  <div class="sec-hdr">⚙️ 공정 선택
+    <span style="font-weight:400;color:#6B7280;font-size:11px;margin-left:auto">탭 또는 QR 스캔</span>
+  </div>
+  <div class="sec-body">
+    <button class="qr-btn" onclick="toggleQR()">
+      📷 공정 QR 스캔으로 선택
+    </button>
+    <div class="qr-preview" id="qrPreview">
+      <video id="qrVideo" autoplay playsinline muted></video>
+    </div>
+    <div class="proc-grid" id="procGrid">
+      <!-- JS로 생성 -->
+    </div>
+  </div>
+</div>
+
+<!-- 품목 선택 -->
+<div class="section">
+  <div class="sec-hdr">📦 품목 선택</div>
+  <div class="sec-body">
+    <div class="select-wrap">
+      <div class="select-lbl">고객사</div>
+      <select id="selCust" onchange="updateModel()">
+        <option value="">-- 선택 --</option>
+        <option value="SADC">SADC (인도)</option>
+        <option value="SHINANN">SHINANN (한국)</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <div class="select-lbl">모델</div>
+      <select id="selModel" onchange="updateItem()">
+        <option value="">-- 고객사 먼저 선택 --</option>
+      </select>
+    </div>
+    <div class="select-wrap">
+      <div class="select-lbl">품목</div>
+      <select id="selItem">
+        <option value="">-- 모델 먼저 선택 --</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- IN/OUT 수량 -->
+<div class="section">
+  <div class="sec-hdr">🔢 수량 입력</div>
+  <div class="sec-body">
+    <div class="inout-grid">
+      <div class="inout-box in-box">
+        <div class="inout-hdr in-hdr">⬇️ IN (받은 수량)</div>
+        <div class="inout-body">
+          <input class="qty-input in-qty" type="number" id="inQty"
+            value="0" min="0" inputmode="numeric">
+          <div class="qty-btns">
+            <button class="qty-btn" onclick="addQty('in',-100)">-100</button>
+            <button class="qty-btn" onclick="addQty('in',-10)">-10</button>
+            <button class="qty-btn" onclick="addQty('in',10)">+10</button>
+            <button class="qty-btn" onclick="addQty('in',100)">+100</button>
+          </div>
+        </div>
+      </div>
+      <div class="inout-box out-box">
+        <div class="inout-hdr out-hdr">⬆️ OUT (보낸 수량)</div>
+        <div class="inout-body">
+          <input class="qty-input out-qty" type="number" id="outQty"
+            value="0" min="0" inputmode="numeric">
+          <div class="qty-btns">
+            <button class="qty-btn" onclick="addQty('out',-100)">-100</button>
+            <button class="qty-btn" onclick="addQty('out',-10)">-10</button>
+            <button class="qty-btn" onclick="addQty('out',10)">+10</button>
+            <button class="qty-btn" onclick="addQty('out',100)">+100</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="select-lbl">메모 (선택)</div>
+      <input class="worker-input" type="text" id="memo" placeholder="메모 입력">
+    </div>
+  </div>
+</div>
+
+<div class="result" id="result"></div>
+
+<div class="save-wrap">
+  <button class="save-btn" id="saveBtn" onclick="saveLog()">💾 저장</button>
+</div>
+
+<!-- 최근 기록 -->
+<div class="section" style="margin-bottom:24px">
+  <div class="sec-hdr">📋 최근 입력 기록</div>
+  <div id="recentLog"><div class="loading">저장 후 표시됩니다</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+// ── 설정 ──────────────────────────────────────────────────────
+const SCRIPT_URL = 'WIP_PROCESS_SCRIPT_URL_HERE';
+
+// ── 공정 정보 ──────────────────────────────────────────────────
+const PROCS = [
+  {code:'FAC1_DC',   label:'FAC1\n다이캐스팅', color:'#1D4ED8'},
+  {code:'FAC2_MAT',  label:'FAC2\nMat',        color:'#15803D'},
+  {code:'FAC2_DEB',  label:'FAC2\nDeburring',  color:'#16A34A'},
+  {code:'FAC2_SHOT', label:'FAC2\nShot Blaste',color:'#059669'},
+  {code:'FAC2_HEAT', label:'FAC2\nHeat/Mach',  color:'#0D9488'},
+  {code:'FAC2_IMPREG',label:'FAC2\nImpregnation',color:'#7C3AED'},
+  {code:'FAC2_PACK', label:'FAC2\nWait Packing',color:'#B45309'},
+  {code:'FAC2_FG',   label:'FAC2\nFG',          color:'#6D28D9'},
+  {code:'SHIP_OUT',  label:'선적\n출하',         color:'#0F1B3C'},
+];
+
+// ── 품목 데이터 ──────────────────────────────────────────────
+const ITEMS = {
+  SADC: {
+    'BA':['C/F','C/R'],
+    'HS 15':['F','R'], 'HS17':['F','R'],
+    'HS 18':['F','R'], 'FS 18':['F','R'],
+    'GEM':['C/F','C/R','H/F','H/R'],
+    'AC3':['C/F','C/R','H/F','H/R'],
+    'COLUMN':['SP3i KEY','SP3i NON KEY','SIERRA','SW'],
+    'MANIFOLD':['CB','CA','NE','NF','QA','JQYBA','HD3AA'],
+  },
+  SHINANN: {
+    'CYLINDER':['HS-15 Front','HS-15 Rear','HS-17 Front','HS-17 Rear',
+                'HS-18 Front','HS-18 Rear','FS-18 Front','FS-18 Rear','DH Front','DH Rear'],
+    'HEAD':['SM Front','SM Rear'],
+    'CT':['I-Support','I-Cover','Rear Housing S/W','Rear Housing Oring'],
+    'CN 8':['Cover','Support','Rear Housing'],
+    'MANIFOLD':['QA-QA','EF-CA','EG-NF'],
+    'SHAFT':['B-HOLDER'],
+  }
+};
+
+let selectedProc = null;
+let qrScanning = false;
+let qrStream = null;
+let recentLogs = [];
+
+// ── 초기화 ──────────────────────────────────────────────────────
+window.onload = () => {
+  // 날짜 표시
+  const now = new Date();
+  document.getElementById('hdrDate').textContent =
+    now.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'short'});
+
+  // 공정 버튼 생성
+  const grid = document.getElementById('procGrid');
+  PROCS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'proc-btn';
+    btn.style.background = p.color;
+    btn.dataset.code = p.code;
+    btn.textContent = p.label;
+    btn.onclick = () => selectProc(p.code);
+    grid.appendChild(btn);
+  });
+};
+
+// ── 공정 선택 ──────────────────────────────────────────────────
+function selectProc(code) {
+  selectedProc = code;
+  document.querySelectorAll('.proc-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.code === code);
+    btn.classList.toggle('unselected', btn.dataset.code !== code);
+  });
+  stopQR();
+}
+
+// ── QR 스캔 ──────────────────────────────────────────────────
+function toggleQR() {
+  qrScanning ? stopQR() : startQR();
+}
+
+async function startQR() {
+  try {
+    const preview = document.getElementById('qrPreview');
+    const video   = document.getElementById('qrVideo');
+    qrStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    video.srcObject = qrStream;
+    preview.style.display = 'block';
+    qrScanning = true;
+    document.querySelector('.qr-btn').textContent = '⏹ QR 스캔 중지';
+    scanFrame(video);
+  } catch(e) {
+    alert('카메라 권한이 필요합니다');
+  }
+}
+
+function stopQR() {
+  if (qrStream) { qrStream.getTracks().forEach(t=>t.stop()); qrStream=null; }
+  document.getElementById('qrPreview').style.display = 'none';
+  document.querySelector('.qr-btn').innerHTML = '📷 공정 QR 스캔으로 선택';
+  qrScanning = false;
+}
+
+function scanFrame(video) {
+  if (!qrScanning) return;
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code = jsQR(img.data, img.width, img.height);
+    if (code) {
+      const proc = PROCS.find(p=>p.code===code.data.trim());
+      if (proc) {
+        selectProc(proc.code);
+        vibrate([100,50,100]);
+        showResult('✅ 공정 스캔: ' + proc.label.replace('\n',' '), 'ok');
+        return;
+      }
+    }
+  }
+  requestAnimationFrame(() => scanFrame(video));
+}
+
+// ── 품목 드롭다운 ───────────────────────────────────────────────
+function updateModel() {
+  const cust  = document.getElementById('selCust').value;
+  const mSel  = document.getElementById('selModel');
+  const iSel  = document.getElementById('selItem');
+  mSel.innerHTML = '<option value="">-- 선택 --</option>';
+  iSel.innerHTML = '<option value="">-- 모델 먼저 선택 --</option>';
+  if (!cust) return;
+  Object.keys(ITEMS[cust]).forEach(m => {
+    mSel.innerHTML += `<option value="${m}">${m}</option>`;
+  });
+}
+
+function updateItem() {
+  const cust  = document.getElementById('selCust').value;
+  const model = document.getElementById('selModel').value;
+  const iSel  = document.getElementById('selItem');
+  iSel.innerHTML = '<option value="">-- 선택 --</option>';
+  if (!cust || !model) return;
+  (ITEMS[cust][model]||[]).forEach(i => {
+    iSel.innerHTML += `<option value="${i}">${i}</option>`;
+  });
+}
+
+// ── 수량 조절 ────────────────────────────────────────────────
+function addQty(type, val) {
+  const el  = document.getElementById(type==='in'?'inQty':'outQty');
+  const cur = parseInt(el.value)||0;
+  el.value = Math.max(0, cur+val);
+}
+
+// ── 저장 ────────────────────────────────────────────────────────
+async function saveLog() {
+  const worker  = document.getElementById('worker').value.trim();
+  const cust    = document.getElementById('selCust').value;
+  const model   = document.getElementById('selModel').value;
+  const item    = document.getElementById('selItem').value;
+  const inQty   = parseInt(document.getElementById('inQty').value)||0;
+  const outQty  = parseInt(document.getElementById('outQty').value)||0;
+  const memo    = document.getElementById('memo').value.trim();
+
+  // 유효성 검사
+  if (!selectedProc) { showResult('❌ 공정을 선택하세요', 'err'); return; }
+  if (!cust)   { showResult('❌ 고객사를 선택하세요', 'err'); return; }
+  if (!model)  { showResult('❌ 모델을 선택하세요', 'err'); return; }
+  if (!item)   { showResult('❌ 품목을 선택하세요', 'err'); return; }
+  if (!worker) { showResult('❌ 담당자를 입력하세요', 'err'); return; }
+  if (inQty===0 && outQty===0) { showResult('❌ IN 또는 OUT 수량을 입력하세요', 'err'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = '저장 중...';
+
+  const today = new Date().toISOString().split('T')[0];
+  const payload = { action:'saveLog', date:today, customer:cust, model, item,
+                    process:selectedProc, inQty, outQty, worker, memo };
+
+  try {
+    if (!SCRIPT_URL || SCRIPT_URL==='WIP_PROCESS_SCRIPT_URL_HERE') {
+      // URL 미설정 시 로컬 기록만
+      addRecentLog({...payload});
+      showResult(`✅ 저장 완료 (로컬)\n${selectedProc} | ${cust} ${model} ${item}\nIN: ${inQty.toLocaleString()} / OUT: ${outQty.toLocaleString()}`, 'ok');
+    } else {
+      const res  = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        addRecentLog({...payload});
+        showResult(`✅ 저장 완료\n${selectedProc} | ${cust} ${model} ${item}\nIN: ${inQty.toLocaleString()} / OUT: ${outQty.toLocaleString()}`, 'ok');
+      } else {
+        throw new Error(data.message||'저장 실패');
+      }
+    }
+    // 수량 초기화
+    document.getElementById('inQty').value = 0;
+    document.getElementById('outQty').value = 0;
+    document.getElementById('memo').value = '';
+    vibrate([50,30,50,30,100]);
+  } catch(e) {
+    showResult('❌ 저장 실패: ' + e.message, 'err');
+  }
+
+  btn.disabled = false; btn.textContent = '💾 저장';
+}
+
+// ── 최근 기록 표시 ───────────────────────────────────────────────
+function addRecentLog(log) {
+  recentLogs.unshift(log);
+  if (recentLogs.length > 10) recentLogs.pop();
+  renderRecentLog();
+}
+
+function renderRecentLog() {
+  const el = document.getElementById('recentLog');
+  if (!recentLogs.length) {
+    el.innerHTML = '<div class="loading">저장 후 표시됩니다</div>';
+    return;
+  }
+  const proc = PROCS.find(p=>p.code===recentLogs[0].process);
+  el.innerHTML = recentLogs.map(log => {
+    const p = PROCS.find(x=>x.code===log.process);
+    return `<div class="log-item">
+      <div class="log-top">
+        <span class="log-proc" style="background:${p?p.color:'#374151'}">
+          ${p?p.label.replace('\n',' '):log.process}
+        </span>
+        <span class="log-who">${log.worker} · ${log.date}</span>
+      </div>
+      <div class="log-item-name">${log.customer} ${log.model} ${log.item}</div>
+      <div class="log-qty">
+        <span class="log-in">⬇️ IN ${Number(log.inQty).toLocaleString()}</span>
+        <span class="log-out">⬆️ OUT ${Number(log.outQty).toLocaleString()}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 결과 메시지 ─────────────────────────────────────────────────
+function showResult(msg, type) {
+  const el = document.getElementById('result');
+  el.style.display = 'block';
+  el.className = `result ${type}`;
+  el.style.whiteSpace = 'pre-line';
+  el.textContent = msg;
+  el.scrollIntoView({behavior:'smooth', block:'nearest'});
+  setTimeout(() => el.style.display='none', 4000);
+}
+
+function vibrate(pattern) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+</script>
+</body>
+</html>

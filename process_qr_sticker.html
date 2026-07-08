@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>공정 QR 스티커</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#F8FAFC;padding:20px}
+
+.page-title{text-align:center;margin-bottom:24px}
+.page-title h1{font-size:20px;font-weight:700;color:#0F1B3C}
+.page-title p{font-size:13px;color:#6B7280;margin-top:4px}
+
+.print-btn{display:block;margin:0 auto 24px;padding:10px 28px;
+  background:#0F1B3C;color:#fff;border:none;border-radius:8px;
+  font-size:14px;cursor:pointer;font-weight:600}
+.print-btn:hover{background:#1E3A8A}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:900px;margin:0 auto}
+
+.sticker{background:#fff;border-radius:12px;border:2px solid;
+  padding:16px;text-align:center;page-break-inside:avoid}
+
+.proc-code{font-size:11px;font-weight:700;letter-spacing:.5px;
+  opacity:.7;margin-bottom:4px}
+.proc-name{font-size:15px;font-weight:700;margin-bottom:2px}
+.proc-name-th{font-size:11px;opacity:.7;margin-bottom:12px}
+.qr-wrap{display:flex;justify-content:center;margin-bottom:12px}
+.proc-flow{font-size:10px;opacity:.6;border-top:1px solid;
+  border-color:inherit;padding-top:8px;margin-top:4px}
+.company{font-size:10px;opacity:.5;margin-top:4px}
+
+@media print{
+  body{background:#fff;padding:8px}
+  .no-print{display:none}
+  .grid{gap:10px;max-width:100%}
+  .sticker{border-width:1.5px}
+}
+</style>
+</head>
+<body>
+
+<div class="no-print page-title">
+  <h1>🏭 STC 공정 QR 스티커</h1>
+  <p>각 공정 위치에 부착하세요 · 스캔 시 공정 자동 선택</p>
+</div>
+
+<button class="print-btn no-print" onclick="window.print()">🖨️ 인쇄</button>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const PROCS = [
+  {
+    code:'FAC1_DC',
+    name:'1공장 다이캐스팅',
+    nameEn:'FAC1 Diecasting',
+    nameTh:'โรงงาน 1 ไดคาสติ้ง',
+    color:'#1D4ED8',
+    light:'#DBEAFE',
+    flow:'생산(IN) → FAC2_MAT으로 이동(OUT)',
+    icon:'🏭'
+  },
+  {
+    code:'FAC2_MAT',
+    name:'2공장 Mat',
+    nameEn:'FAC2 Material',
+    nameTh:'โรงงาน 2 วัตถุดิบ',
+    color:'#15803D',
+    light:'#D1FAE5',
+    flow:'FAC1_DC에서 수령(IN) → Deburring으로 이동(OUT)',
+    icon:'📦'
+  },
+  {
+    code:'FAC2_DEB',
+    name:'2공장 Deburring',
+    nameEn:'FAC2 Deburring',
+    nameTh:'โรงงาน 2 ดีเบอร์ริ่ง',
+    color:'#16A34A',
+    light:'#DCFCE7',
+    flow:'Mat에서 수령(IN) → Shot Blaste로 이동(OUT)',
+    icon:'⚙️'
+  },
+  {
+    code:'FAC2_SHOT',
+    name:'2공장 Shot Blaste',
+    nameEn:'FAC2 Shot Blaste',
+    nameTh:'โรงงาน 2 ช็อตบลาส',
+    color:'#059669',
+    light:'#ECFDF5',
+    flow:'Deburring에서 수령(IN) → Heat/Mach으로 이동(OUT)',
+    icon:'💨'
+  },
+  {
+    code:'FAC2_HEAT',
+    name:'2공장 Heat/Mach',
+    nameEn:'FAC2 Heat Treatment',
+    nameTh:'โรงงาน 2 ฮีตทรีตเมนต์',
+    color:'#0D9488',
+    light:'#CCFBF1',
+    flow:'Shot에서 수령(IN) → Pack/Impreg으로 이동(OUT)',
+    icon:'🔥'
+  },
+  {
+    code:'FAC2_IMPREG',
+    name:'2공장 Impregnation',
+    nameEn:'FAC2 Impregnation',
+    nameTh:'โรงงาน 2 อิมพรีกเนชัน',
+    color:'#7C3AED',
+    light:'#EDE9FE',
+    flow:'Heat에서 수령(IN) → Wait Packing으로 이동(OUT)',
+    icon:'💧'
+  },
+  {
+    code:'FAC2_PACK',
+    name:'2공장 Wait Packing',
+    nameEn:'FAC2 Wait Packing',
+    nameTh:'โรงงาน 2 รอแพ็คกิ้ง',
+    color:'#B45309',
+    light:'#FEF3C7',
+    flow:'이전 공정에서 수령(IN) → FG로 이동(OUT)',
+    icon:'📫'
+  },
+  {
+    code:'FAC2_FG',
+    name:'2공장 FG 완성품',
+    nameEn:'FAC2 Finished Goods',
+    nameTh:'โรงงาน 2 สินค้าสำเร็จรูป',
+    color:'#6D28D9',
+    light:'#F5F3FF',
+    flow:'Wait Packing에서 수령(IN) → 선적으로 이동(OUT)',
+    icon:'✅'
+  },
+  {
+    code:'SHIP_OUT',
+    name:'선적 출하',
+    nameEn:'Shipment Out',
+    nameTh:'ส่งออก',
+    color:'#0F1B3C',
+    light:'#F1F5F9',
+    flow:'FG에서 수령(IN) → 출하 완료',
+    icon:'🚢'
+  },
+];
+
+const grid = document.getElementById('grid');
+
+PROCS.forEach(p => {
+  const div = document.createElement('div');
+  div.className = 'sticker';
+  div.style.borderColor = p.color;
+  div.style.background = p.light;
+
+  div.innerHTML = `
+    <div class="proc-code" style="color:${p.color}">${p.code}</div>
+    <div class="proc-name" style="color:${p.color}">${p.icon} ${p.name}</div>
+    <div class="proc-name-th" style="color:${p.color}">${p.nameTh}</div>
+    <div class="qr-wrap">
+      <div id="qr-${p.code}" style="background:#fff;padding:6px;border-radius:6px;
+        border:1.5px solid ${p.color}"></div>
+    </div>
+    <div class="proc-flow" style="color:${p.color};border-color:${p.color}22">
+      ${p.flow}
+    </div>
+    <div class="company" style="color:${p.color}">STC Co., Ltd.</div>
+  `;
+  grid.appendChild(div);
+
+  // QR 생성
+  new QRCode(document.getElementById(`qr-${p.code}`), {
+    text: p.code,
+    width: 120,
+    height: 120,
+    colorDark: p.color,
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+});
+</script>
+</body>
+</html>
