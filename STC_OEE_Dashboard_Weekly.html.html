@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC 기간별 종합 데이터</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f2f4f7; color:#222; }
+  .container { max-width:1600px; margin:0 auto; padding:20px; }
+  header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); color:#fff; padding:22px 28px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  h1 { font-size:24px; margin-bottom:4px; }
+  header p.sub { font-size:13px; opacity:.85; }
+  .nav-row { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+  .nav-row a { color:#fff; background:rgba(255,255,255,0.15); padding:7px 14px; border-radius:4px; text-decoration:none; font-size:13px; font-weight:600; }
+  .nav-row a:hover { background:rgba(255,255,255,0.28); }
+  .nav-row button { padding:8px 16px; border:none; border-radius:4px; font-size:13px; font-weight:700; cursor:pointer; background:#ff6b6b; color:#fff; }
+  .nav-row button:hover { background:#ff5252; }
+  .status-line { font-size:12px; margin-top:8px; color:#e8f0ff; min-height:16px; }
+  .status-line.err { color:#ffd2d2; font-weight:700; }
+
+  .card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:18px 20px 22px; margin-bottom:20px; }
+  .card-title { font-size:16px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:3px solid #2196F3; }
+
+  .period-bar { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-end; margin-bottom:6px; }
+  .period-group { display:flex; flex-direction:column; gap:6px; }
+  .period-group label { font-size:12px; font-weight:700; color:#555; }
+  .period-group .row { display:flex; gap:8px; align-items:center; }
+  .period-group input[type=date], .period-group select { padding:7px 10px; border:1px solid #ddd; border-radius:5px; font-size:13px; }
+  .apply-btn { padding:9px 20px; border:none; border-radius:5px; background:#2196F3; color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+  .apply-btn:hover { background:#1976D2; }
+  .divider-v { width:1px; background:#eee; align-self:stretch; }
+  .period-label-display { font-size:12px; color:#888; margin-top:6px; }
+
+  table.summary { width:100%; border-collapse:collapse; font-size:13px; margin-top:18px; table-layout:fixed; }
+  table.summary th, table.summary td { border:1px solid #e5e5e5; padding:9px 6px; text-align:center; }
+  table.summary th { background:#f6f7f9; font-weight:700; color:#444; font-size:12px; }
+  table.summary td.scope-label { background:#eef3fb; font-weight:800; color:#1e3c72; width:90px; }
+  table.summary td.metric { font-weight:700; }
+  .col-avail { background:#fff6e0; }
+  .col-perf { background:#e9ecfb; }
+  .col-qual { background:#e9f7ec; }
+  .col-oee { background:#f0f0f0; font-weight:800; }
+
+  .footnote { font-size:11px; color:#999; margin-top:14px; line-height:1.6; }
+  .empty-msg { font-size:13px; color:#999; text-align:center; padding:30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📅 STC 기간별 종합 데이터</h1>
+    <p class="sub">원하는 기간을 지정해 주말포함 / 주말제외 종합 실적을 확인합니다</p>
+    <div class="nav-row">
+      <a href="./STC_OEE_Dashboard_Weekly.html">← OEE 대시보드로</a>
+      <a href="./STC_OEE_LossAnalysis.html">🔧 설비/Loss 분석 →</a>
+      <a href="./STC_OEE_DataConverter.html">🔄 데이터 변환기 →</a>
+      <button onclick="onRefreshClick()">🔄 구글시트에서 새로고침</button>
+    </div>
+    <div class="status-line" id="statusLine">데이터를 불러오는 중...</div>
+  </header>
+
+  <div class="card">
+    <div class="card-title">🗓 기간 선택</div>
+    <div class="period-bar">
+      <div class="period-group">
+        <label>날짜로 선택</label>
+        <div class="row">
+          <input type="date" id="startDate">
+          <span>~</span>
+          <input type="date" id="endDate">
+        </div>
+      </div>
+      <div class="period-group">
+        <label>&nbsp;</label>
+        <button class="apply-btn" onclick="applyPeriod()">종합 데이터 계산</button>
+      </div>
+    </div>
+    <div class="period-label-display" id="periodLabelDisplay"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 기간 종합 실적</div>
+    <div id="summaryTableWrap"><div class="empty-msg">기간을 선택하고 "종합 데이터 계산"을 눌러주세요.</div></div>
+    <div class="footnote">
+      ※ C/T STD·C/T Real·Avg shot은 해당 기간 원본 값들의 단순 합계입니다.<br>
+      ※ Availability(%) = Σ가동시간 / Σ계획시간, Performance(%) = Σmin(이론생산시간, 가동시간) / Σ가동시간 (개별 100% 상한), Quality(%) = ΣQty_Good / ΣQty_Total, OEE = A×P×Q.
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------- Storage (shared with the main dashboard) ---------- */
+const Store = {
+  async get(key){
+    if (window.storage) { try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; } catch(e){ return null; } }
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e){ return null; }
+  },
+  async set(key, value){
+    const str = JSON.stringify(value);
+    if (window.storage) { try { await window.storage.set(key, str); return true; } catch(e){} }
+    try { localStorage.setItem(key, str); return true; } catch(e){ return false; }
+  }
+};
+const STORE_KEY = 'stc_oee_dashboard_v1'; // shared with the main OEE dashboard + Loss analysis page
+
+/* ---------- CSV parsing ---------- */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  const header = rows[0] || [];
+  return { header, rows: rows.slice(1).filter(r => !(r.length===1 && r[0]==='')).map(r=>{ const o={}; header.forEach((h,i)=>o[h]=r[i]); return o; }) };
+}
+
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+function classifyColumns(rows){
+  if (!rows.length) return null;
+  const cols = Object.keys(rows[0]);
+  if (cols.includes('계획시간_분') && cols.includes('가동시간_분') && cols.includes('Losstime_분')) return 'A';
+  if (cols.includes('Avg_shot') && cols.includes('CT_STD')) return 'P';
+  if (cols.includes('Qty_Good') && cols.includes('불량수량')) return 'Q';
+  return null;
+}
+
+/* ---------- Period aggregation (pure, unit-tested separately with real data) ---------- */
+function periodSummary(aRows, pRows, qRows, startDate, endDate, scope) {
+  const inRange = r => r['일자'] >= startDate && r['일자'] <= endDate && (scope==='all' || r['구분']==='정규');
+
+  const aSel = aRows.filter(inRange);
+  const pSel = pRows.filter(inRange).filter(r => r['가동시간_분'] && num(r['가동시간_분'])>0 && r['Avg_shot'] && r['CT_STD']);
+  const qSel = qRows.filter(inRange).filter(r => num(r['Qty_Total'])>0);
+
+  const plan = aSel.reduce((s,r)=>s+num(r['계획시간_분']),0);
+  const run = aSel.reduce((s,r)=>s+num(r['가동시간_분']),0);
+  const loss = aSel.reduce((s,r)=>s+num(r['Losstime_분']),0);
+
+  const ctStdSum = pSel.reduce((s,r)=>s+num(r['CT_STD']),0);
+  const ctRealSum = pSel.reduce((s,r)=>s+num(r['CT_Real']),0);
+  const avgShotSum = pSel.reduce((s,r)=>s+num(r['Avg_shot']),0);
+  let idealSum=0, pRunSum=0;
+  for (const r of pSel) {
+    const rn = num(r['가동시간_분']);
+    const ideal = Math.min(num(r['Avg_shot'])*num(r['CT_STD'])/60, rn);
+    idealSum += ideal; pRunSum += rn;
+  }
+
+  const qtyTotal = qSel.reduce((s,r)=>s+num(r['Qty_Total']),0);
+  const qtyGood = qSel.reduce((s,r)=>s+num(r['Qty_Good']),0);
+
+  const A = plan>0 ? run/plan*100 : null;
+  const P = pRunSum>0 ? idealSum/pRunSum*100 : null;
+  const Q = qtyTotal>0 ? qtyGood/qtyTotal*100 : null;
+  const OEE = (A!=null&&P!=null&&Q!=null) ? A*P*Q/10000 : null;
+
+  return { plan, run, loss, ctStdSum, ctRealSum, avgShotSum, qtyTotal, qtyGood, A, P, Q, OEE };
+}
+
+/* ---------- Shared-store aware Google Sheets sync ---------- */
+const SHEET_PUB_KEY = '2PACX-1vQ6U8gG0Mr3oJ-5XOOzr7Eh_oZGc-BGHFG0n1__eor4Zc8aJaMuf01NXCAHJECH6U8aUvtnQGLKD5-_';
+const SHEET_GIDS = ['345197688', '287133604', '116850424'];
+function sheetCsvUrl(gid){ return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_KEY}/pub?gid=${gid}&single=true&output=csv`; }
+async function fetchSheetCSV(gid){
+  const res = await fetch(sheetCsvUrl(gid), { cache: 'no-store' });
+  if (!res.ok) throw new Error(`시트(gid=${gid}) 응답 오류: ${res.status}`);
+  return await res.text();
+}
+
+// Same seed as the main dashboard, duplicated so that if this page happens to
+// initialize the shared store first, it stays fully compatible.
+function seedData() {
+  const seedWeeksPct = {
+    W23: {A:79.2,P:98.1,Q:94.2,OEE:73.2}, W24: {A:74.1,P:98.1,Q:94.3,OEE:69.7},
+    W25: {A:75.7,P:99.4,Q:91.6,OEE:68.9}, W26: {A:81.1,P:99.5,Q:90.7,OEE:73.2}
+  };
+  const weeks = {};
+  const starts = { W23:'2026-05-27', W24:'2026-06-03', W25:'2026-06-10', W26:'2026-06-17' };
+  for (const [label, p] of Object.entries(seedWeeksPct)) {
+    weeks[label] = { label, startDate: starts[label], endDate: starts[label], monthKey: null, dayCount: 7, pct: { all: p, regular: p }, dailyRegular: { dates: [], A: [] } };
+  }
+  const monthSeed = {
+    '2025-12': {A:73.8,P:83.1,Q:87.6,OEE:54.1}, '2026-01': {A:77.6,P:98.6,Q:92.3,OEE:70.9},
+    '2026-02': {A:77.8,P:99.5,Q:93.8,OEE:72.7}, '2026-03': {A:76.1,P:98.7,Q:93.1,OEE:70.5},
+    '2026-04': {A:74.1,P:98.5,Q:92.2,OEE:67.9}, '2026-05': {A:77.4,P:99.2,Q:93.5,OEE:71.6},
+    '2026-06': {A:74.9,P:99.6,Q:92.2,OEE:68.8}
+  };
+  return { weeks, monthSeed, lastWeek: 'W26' };
+}
+
+let SHARED_DATA = null;
+let RAW = { A: null, P: null, Q: null }; // {header, rows}
+
+async function fetchOwnAPQ(){
+  const texts = await Promise.all(SHEET_GIDS.map(fetchSheetCSV));
+  const out = {};
+  for (const t of texts) {
+    const parsed = parseCSV(t);
+    const kind = classifyColumns(parsed.rows);
+    if (kind) out[kind] = { header: parsed.header, rows: parsed.rows, fetchedAt: Date.now() };
+  }
+  if (!out.A || !out.P || !out.Q) throw new Error('A/P/Q 탭을 컬럼 구조로 자동 식별하지 못했습니다.');
+  return out;
+}
+
+async function syncFromGoogleSheets(){
+  const apq = await fetchOwnAPQ();
+  RAW = apq;
+  if (!SHARED_DATA) SHARED_DATA = seedData();
+  SHARED_DATA.rawA = apq.A; SHARED_DATA.rawP = apq.P; SHARED_DATA.rawQ = apq.Q;
+  await Store.set(STORE_KEY, SHARED_DATA);
+  return apq;
+}
+
+function setStatus(msg, isError){
+  const el = document.getElementById('statusLine');
+  el.textContent = msg;
+  el.className = 'status-line' + (isError ? ' err' : '');
+}
+
+/* ---------- Default date range, derived from available raw data ---------- */
+function weekList(){
+  const rows = RAW.A ? RAW.A.rows : [];
+  const meta = {};
+  for (const r of rows) {
+    const wk = r['주차'];
+    if (!wk) continue;
+    if (!meta[wk]) meta[wk] = { label: wk, minDate: r['일자'], maxDate: r['일자'] };
+    if (r['일자'] < meta[wk].minDate) meta[wk].minDate = r['일자'];
+    if (r['일자'] > meta[wk].maxDate) meta[wk].maxDate = r['일자'];
+  }
+  return Object.values(meta).sort((a,b)=> a.minDate < b.minDate ? -1 : 1);
+}
+
+function setDefaultDateRange(){
+  const weeks = weekList();
+  if (weeks.length) {
+    document.getElementById('startDate').value = weeks[0].minDate;
+    document.getElementById('endDate').value = weeks[weeks.length-1].maxDate;
+  }
+}
+
+/* ---------- Render summary table ---------- */
+function fmtInt(v){ return v==null ? '-' : Math.round(v).toLocaleString(); }
+function fmtPct(v){ return v==null ? '-' : v.toFixed(1)+'%'; }
+
+function renderSummaryTable(startDate, endDate){
+  if (!RAW.A || !RAW.P || !RAW.Q) {
+    document.getElementById('summaryTableWrap').innerHTML = '<div class="empty-msg">아직 데이터가 없습니다. 새로고침을 눌러주세요.</div>';
+    return;
+  }
+  const rowsAll = periodSummary(RAW.A.rows, RAW.P.rows, RAW.Q.rows, startDate, endDate, 'all');
+  const rowsReg = periodSummary(RAW.A.rows, RAW.P.rows, RAW.Q.rows, startDate, endDate, 'regular');
+
+  const mk = (label, r) => `
+    <tr>
+      <td class="scope-label">${label}</td>
+      <td class="metric">${fmtInt(r.ctStdSum)}</td>
+      <td class="metric">${fmtInt(r.ctRealSum)}</td>
+      <td class="metric">${fmtInt(r.qtyTotal)}</td>
+      <td class="metric">${fmtInt(r.qtyGood)}</td>
+      <td class="metric">${fmtInt(r.avgShotSum)}</td>
+      <td class="metric">${fmtInt(r.plan)}</td>
+      <td class="metric">${fmtInt(r.run)}</td>
+      <td class="metric">${fmtInt(r.loss)}</td>
+      <td class="metric col-avail">${fmtPct(r.A)}</td>
+      <td class="metric col-perf">${fmtPct(r.P)}</td>
+      <td class="metric col-qual">${fmtPct(r.Q)}</td>
+      <td class="metric col-oee">${fmtPct(r.OEE)}</td>
+    </tr>`;
+
+  const html = `
+    <table class="summary">
+      <thead>
+        <tr>
+          <th rowspan="2">구분</th>
+          <th colspan="2">C/T</th>
+          <th colspan="2">Q'ty</th>
+          <th rowspan="2">Avg shot</th>
+          <th rowspan="2">계획시간(분)</th>
+          <th rowspan="2">가동시간(분)</th>
+          <th rowspan="2">Losstime(분)</th>
+          <th rowspan="2">Availability(%)</th>
+          <th rowspan="2">Performance(%)</th>
+          <th rowspan="2">Quality(%)</th>
+          <th rowspan="2">OEE TTL(%)</th>
+        </tr>
+        <tr>
+          <th>C/T STD</th><th>C/T Real</th><th>Total</th><th>Good</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${mk('주말포함', rowsAll)}
+        ${mk('주말제외', rowsReg)}
+      </tbody>
+    </table>`;
+  document.getElementById('summaryTableWrap').innerHTML = html;
+  document.getElementById('periodLabelDisplay').textContent = `선택된 기간: ${startDate} ~ ${endDate}`;
+}
+
+function applyPeriod(){
+  const s = document.getElementById('startDate').value;
+  const e = document.getElementById('endDate').value;
+  if (!s || !e) { setStatus('시작일/종료일을 선택해주세요.', true); return; }
+  if (s > e) { setStatus('시작일이 종료일보다 늦습니다.', true); return; }
+  renderSummaryTable(s, e);
+}
+
+async function onRefreshClick(){
+  try {
+    setStatus('구글시트에서 불러오는 중...');
+    await syncFromGoogleSheets();
+    setDefaultDateRange();
+    const s = document.getElementById('startDate').value, e = document.getElementById('endDate').value;
+    if (s && e) renderSummaryTable(s, e);
+    setStatus('동기화 완료. 기간을 선택하고 "종합 데이터 계산"을 눌러주세요.');
+  } catch(e){
+    console.error(e);
+    const hint = (e instanceof TypeError || /fetch/i.test(e.message))
+      ? ' → Claude 미리보기 창(아티팩트) 안에서는 보안 샌드박스가 외부 네트워크 요청을 막습니다. 이 HTML 파일을 다운로드해서 실제 브라우저로 직접 열어 다시 시도해주세요.'
+      : '';
+    setStatus('구글시트 연동 오류: ' + e.message + hint, true);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  SHARED_DATA = await Store.get(STORE_KEY);
+  if (SHARED_DATA && SHARED_DATA.rawA && SHARED_DATA.rawP && SHARED_DATA.rawQ) {
+    RAW = { A: SHARED_DATA.rawA, P: SHARED_DATA.rawP, Q: SHARED_DATA.rawQ };
+    setDefaultDateRange();
+    const s = document.getElementById('startDate').value, e = document.getElementById('endDate').value;
+    if (s && e) renderSummaryTable(s, e);
+    setStatus(`대시보드와 공유된 캐시를 불러왔습니다 (${new Date(RAW.A.fetchedAt).toLocaleString('ko-KR')} 기준). 필요하면 새로고침을 눌러주세요.`);
+  } else {
+    setStatus('공유 캐시가 없습니다. 지금 구글시트에서 직접 불러옵니다...');
+    await onRefreshClick();
+  }
+});
+</script>
+</body>
+</html>
