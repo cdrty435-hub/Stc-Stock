@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC OEE 대시보드 (주간용)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f2f4f7; color:#222; }
+  .container { max-width:1600px; margin:0 auto; padding:20px; }
+  header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); color:#fff; padding:22px 28px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  h1 { font-size:24px; margin-bottom:4px; }
+  header p.sub { font-size:13px; opacity:.85; }
+
+  .upload-bar { background:rgba(255,255,255,0.08); border-radius:6px; padding:12px 14px; margin-top:14px; display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  .upload-field { display:flex; flex-direction:column; gap:4px; }
+  .upload-field label { font-size:11px; color:#dce6f5; }
+  .upload-field input[type=file] { font-size:11px; color:#fff; max-width:190px; }
+  .upload-actions { display:flex; gap:8px; margin-left:auto; }
+  .upload-actions button { padding:8px 16px; border:none; border-radius:4px; font-size:13px; font-weight:700; cursor:pointer; }
+  #btnCompute { background:#ff6b6b; color:#fff; }
+  #btnCompute:hover { background:#ff5252; }
+  #btnReset { background:#ffffffcc; color:#333; }
+  #btnReset:hover { background:#fff; }
+  .status-line { font-size:12px; margin-top:8px; color:#e8f0ff; min-height:16px; }
+  .status-line.err { color:#ffd2d2; font-weight:700; }
+
+  .controls { display:flex; gap:16px; flex-wrap:wrap; margin-top:14px; }
+  .control-group { display:flex; gap:8px; align-items:center; }
+  label { font-weight:600; color:#fff; font-size:13px; }
+  select, .pdfbtn { padding:7px 14px; border:none; border-radius:4px; background:#fff; cursor:pointer; font-size:13px; }
+  select { min-width:150px; }
+  .pdfbtn { background:#ffb74d; color:#333; font-weight:600; }
+
+  .quad-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:1100px){ .quad-grid{ grid-template-columns:1fr; } }
+
+  .quad-card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:18px 20px 22px; display:flex; flex-direction:column; }
+  .quad-title { font-size:16px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:3px solid #2196F3; }
+
+  .gauge-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .gauge-card { text-align:center; padding:10px 6px 4px; }
+  .gauge-name { font-size:14px; font-weight:700; }
+  .gauge-target-pill { display:inline-block; font-size:11px; color:#888; background:#f0f0f0; border-radius:3px; padding:3px 8px; margin:6px 0 4px; }
+  .gauge-canvas { width:100%; height:170px; }
+  .gauge-sub { font-size:11px; color:#999; }
+
+  .chart-title { text-align:center; font-size:14px; font-weight:700; margin-bottom:6px; }
+  .chart-wrap { position:relative; height:270px; margin-bottom:12px; }
+  .chart-wrap canvas { width:100%; height:100%; display:block; }
+
+  table.mini { width:100%; border-collapse:collapse; font-size:12px; margin-top:auto; table-layout:fixed; }
+  table.mini th, table.mini td { border-bottom:1px solid #eee; padding:6px 5px; text-align:center; overflow:hidden; }
+  table.mini th { background:#f6f7f9; font-weight:700; color:#444; }
+  table.mini td.rowlabel, table.mini th.rowlabel { text-align:left; font-weight:600; color:#555; white-space:nowrap; width:72px; }
+  .swatch { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; }
+
+  .footnote { font-size:11px; color:#999; margin-top:14px; line-height:1.5; }
+  .empty-msg { font-size:13px; color:#999; text-align:center; padding:30px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🏭 STC OEE 대시보드</h1>
+    <p class="sub">설비 종합효율 실시간 모니터링 · 주간 보고용</p>
+
+    <div class="upload-bar">
+      <div class="upload-field" style="max-width:520px;">
+        <label>연동된 구글시트 (OEE_RawData_APQ)</label>
+        <div style="font-size:12px; color:#e8f0ff;">A/P/Q 탭 자동 인식 · 새 주차가 쌓이면 아래 새로고침만 눌러주세요</div>
+      </div>
+      <div class="upload-actions">
+        <button id="btnCompute" onclick="onRefreshClick()">🔄 구글시트에서 새로고침</button>
+        <button id="btnReset" onclick="onResetClick()">🗑 캐시 초기화</button>
+      </div>
+    </div>
+    <div class="status-line" id="statusLine">데이터를 불러오는 중...</div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label>범위:</label>
+        <select id="scopeSelect" onchange="renderAll()">
+          <option value="all">전체 (주말포함)</option>
+          <option value="regular">정규만 (특근제외)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>조회:</label>
+        <select id="viewModeSelect" onchange="onViewModeChange()">
+          <option value="week">주차별</option>
+          <option value="period">기간 선택</option>
+        </select>
+      </div>
+      <div class="control-group" id="weekModeGroup">
+        <label>주차:</label>
+        <select id="weekSelect" onchange="renderAll()"></select>
+      </div>
+      <div class="control-group" id="periodModeGroup" style="display:none;">
+        <label>기간:</label>
+        <input type="date" id="periodStart" style="padding:6px 8px; border:none; border-radius:4px; font-size:13px;">
+        <span style="color:#fff;">~</span>
+        <input type="date" id="periodEnd" style="padding:6px 8px; border:none; border-radius:4px; font-size:13px;">
+        <button class="pdfbtn" style="background:#4CAF50;color:#fff;" onclick="renderAll()">적용</button>
+      </div>
+      <button id="btnExportPdf" class="pdfbtn" onclick="exportPDF()">📄 PDF 다운로드</button>
+      <a href="./STC_OEE_LossAnalysis.html" style="padding:7px 14px; border-radius:4px; background:rgba(255,255,255,0.15); color:#fff; text-decoration:none; font-size:13px; font-weight:600;">🔧 설비/Loss 분석 →</a>
+      <a href="./STC_OEE_PeriodSummary.html" style="padding:7px 14px; border-radius:4px; background:rgba(255,255,255,0.15); color:#fff; text-decoration:none; font-size:13px; font-weight:600;">📅 기간별 종합 데이터 →</a>
+      <a href="./STC_OEE_DataConverter.html" style="padding:7px 14px; border-radius:4px; background:rgba(255,255,255,0.15); color:#fff; text-decoration:none; font-size:13px; font-weight:600;">🔄 데이터 변환기 →</a>
+    </div>
+  </header>
+
+  <div class="quad-grid">
+
+    <div class="quad-card">
+      <div class="quad-title">📊 항목별 목표 대비 실적</div>
+      <div class="chart-title" id="gaugeWeekTitle">목표 대비 실적</div>
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <div class="gauge-name" style="color:#2196F3">A(%)</div>
+          <div class="gauge-target-pill">Target 89%</div>
+          <canvas id="gauge-a" class="gauge-canvas" width="280" height="170"></canvas>
+          <div class="gauge-sub">(선택 주차 실적)</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-name" style="color:#4CAF50">P(%)</div>
+          <div class="gauge-target-pill">Target 99%</div>
+          <canvas id="gauge-p" class="gauge-canvas" width="280" height="170"></canvas>
+          <div class="gauge-sub">(선택 주차 실적)</div>
+        </div>
+        <div class="gauge-card">
+          <div class="gauge-name" style="color:#FF9800">Q(%)</div>
+          <div class="gauge-target-pill">Target 96.5%</div>
+          <canvas id="gauge-q" class="gauge-canvas" width="280" height="170"></canvas>
+          <div class="gauge-sub">(선택 주차 실적)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">📈 월별 OEE Trend</div>
+      <div class="chart-title" id="monthlyTitle">KPI PERFORMANCE</div>
+      <div class="chart-wrap"><canvas id="chart-monthly" width="720" height="270"></canvas></div>
+      <table class="mini" id="table-monthly"></table>
+      <div class="footnote">※ 월별 값은 해당 월에 속한 주차들의 실적을 (일수 가중) 평균한 값입니다. Dec-25~Jun-26은 초기 등록된 고정 이력치입니다.</div>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">📆 최근 5주간 Data 변동 추이</div>
+      <div class="chart-title" id="weekTrendTitle">KPI PERFORMANCE</div>
+      <div class="chart-wrap"><canvas id="chart-5week" width="720" height="270"></canvas></div>
+      <table class="mini" id="table-5week"></table>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">📅 일자별 설비 가동율(A) Data 내역</div>
+      <div class="chart-title" id="dailyTitle">A(%) PERFORMANCE</div>
+      <div class="chart-wrap"><canvas id="chart-daily-a"></canvas></div>
+      <table class="mini" id="table-daily"></table>
+      <div class="footnote">※ 일자별 가동율은 정규시간 기준(특근/주말 제외)으로 집계됩니다. 특근일은 표에서 공란으로 표시됩니다.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   0. Storage abstraction — uses window.storage (Claude artifact persistent
+      storage) when available, falls back to localStorage otherwise so the
+      file also works when saved/opened as a normal standalone HTML page.
+   ========================================================================= */
+const Store = {
+  async get(key){
+    if (window.storage) {
+      try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; }
+      catch(e){ return null; }
+    }
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+    catch(e){ return null; }
+  },
+  async set(key, value){
+    const str = JSON.stringify(value);
+    if (window.storage) {
+      try { await window.storage.set(key, str); return true; } catch(e){ /* fall through */ }
+    }
+    try { localStorage.setItem(key, str); return true; } catch(e){ return false; }
+  },
+  async delete(key){
+    if (window.storage) { try { await window.storage.delete(key); } catch(e){} }
+    try { localStorage.removeItem(key); } catch(e){}
+  }
+};
+const STORE_KEY = 'stc_oee_dashboard_v1';
+
+/* =========================================================================
+   1. CSV parsing + OEE aggregation (pure functions, unit-tested separately)
+   ========================================================================= */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  const header = rows[0] || [];
+  return rows.slice(1)
+    .filter(r => !(r.length === 1 && r[0] === ''))
+    .map(r => { const obj = {}; header.forEach((h,i)=> obj[h]=r[i]); return obj; });
+}
+
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+function computeA(rows) {
+  const out = {};
+  for (const scope of ['all','regular']) {
+    const daily = {};
+    let plan=0, run=0;
+    for (const r of rows) {
+      if (scope==='regular' && r['구분']!=='정규') continue;
+      const d = r['일자'];
+      const p = num(r['계획시간_분']), rn = num(r['가동시간_분']);
+      if (!daily[d]) daily[d] = {plan:0, run:0};
+      daily[d].plan += p; daily[d].run += rn;
+      plan += p; run += rn;
+    }
+    out[scope] = { daily, total: {plan, run} };
+  }
+  return out;
+}
+
+function computeP(rows) {
+  const out = {};
+  for (const scope of ['all','regular']) {
+    let ideal=0, run=0;
+    for (const r of rows) {
+      if (scope==='regular' && r['구분']!=='정규') continue;
+      const rn = num(r['가동시간_분']);
+      if (rn <= 0) continue;
+      const avgShot = num(r['Avg_shot']), ctStd = num(r['CT_STD']);
+      if (!avgShot || !ctStd) continue;
+      const idealCapped = Math.min(avgShot*ctStd/60, rn);
+      ideal += idealCapped; run += rn;
+    }
+    out[scope] = { total: {ideal, run} };
+  }
+  return out;
+}
+
+function computeQ(rows) {
+  const out = {};
+  for (const scope of ['all','regular']) {
+    let good=0, total=0;
+    for (const r of rows) {
+      if (scope==='regular' && r['구분']!=='정규') continue;
+      const t = num(r['Qty_Total']);
+      if (t <= 0) continue;
+      good += num(r['Qty_Good']); total += t;
+    }
+    out[scope] = { total: {good, total} };
+  }
+  return out;
+}
+
+const pctA = t => t.plan>0 ? t.run/t.plan*100 : null;
+const pctP = t => t.run>0 ? t.ideal/t.run*100 : null;
+const pctQ = t => t.total>0 ? t.good/t.total*100 : null;
+
+function weekMeta(aRows) {
+  const dates = [...new Set(aRows.map(r => r['일자']))].filter(Boolean).sort();
+  const label = (aRows.find(r => r['주차']) || {})['주차'] || ('W'+Date.now());
+  const monthCounts = {};
+  for (const d of dates) { const mk = d.slice(0,7); monthCounts[mk] = (monthCounts[mk]||0)+1; }
+  let monthKey = dates.length ? dates[dates.length-1].slice(0,7) : '';
+  let best = -1;
+  for (const [mk,c] of Object.entries(monthCounts)) { if (c > best) { best = c; monthKey = mk; } }
+  return { label, dates, startDate: dates[0], endDate: dates[dates.length-1], monthKey };
+}
+
+function monthKeyToLabel(mk){
+  const [y,m] = mk.split('-');
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return names[parseInt(m,10)-1] + '-' + y.slice(2);
+}
+
+/* =========================================================================
+   2. Build one "week record" from the 3 parsed raw CSVs
+   ========================================================================= */
+function buildWeekRecord(aRows, pRows, qRows) {
+  const meta = weekMeta(aRows);
+  const A = computeA(aRows), P = computeP(pRows), Q = computeQ(qRows);
+  const pct = {};
+  for (const scope of ['all','regular']) {
+    const a = pctA(A[scope].total), p = pctP(P[scope].total), q = pctQ(Q[scope].total);
+    const oee = (a!=null && p!=null && q!=null) ? (a*p*q/10000) : null;
+    pct[scope] = { A:a, P:p, Q:q, OEE:oee };
+  }
+  const regDaily = A.regular.daily;
+  const dates = meta.dates;
+  const dailyA = dates.map(d => regDaily[d] && regDaily[d].plan>0 ? regDaily[d].run/regDaily[d].plan*100 : null);
+  return {
+    label: meta.label, startDate: meta.startDate, endDate: meta.endDate, monthKey: meta.monthKey,
+    dayCount: dates.length, pct,
+    dailyRegular: { dates, A: dailyA }
+  };
+}
+
+/* =========================================================================
+   3. Seed data (first run only) — historical values already established
+      before this raw-data upload system existed.
+   ========================================================================= */
+function seedData() {
+  const seedWeeksPct = {
+    W23: {A:79.2,P:98.1,Q:94.2,OEE:73.2},
+    W24: {A:74.1,P:98.1,Q:94.3,OEE:69.7},
+    W25: {A:75.7,P:99.4,Q:91.6,OEE:68.9},
+    W26: {A:81.1,P:99.5,Q:90.7,OEE:73.2}
+  };
+  const weeks = {};
+  const starts = { W23:'2026-05-27', W24:'2026-06-03', W25:'2026-06-10', W26:'2026-06-17' };
+  for (const [label, p] of Object.entries(seedWeeksPct)) {
+    weeks[label] = {
+      label, startDate: starts[label], endDate: starts[label], monthKey: null, // excluded from monthly derivation
+      dayCount: 7, pct: { all: p, regular: p }, dailyRegular: { dates: [], A: [] }
+    };
+  }
+  const monthSeed = {
+    '2025-12': {A:73.8,P:83.1,Q:87.6,OEE:54.1},
+    '2026-01': {A:77.6,P:98.6,Q:92.3,OEE:70.9},
+    '2026-02': {A:77.8,P:99.5,Q:93.8,OEE:72.7},
+    '2026-03': {A:76.1,P:98.7,Q:93.1,OEE:70.5},
+    '2026-04': {A:74.1,P:98.5,Q:92.2,OEE:67.9},
+    '2026-05': {A:77.4,P:99.2,Q:93.5,OEE:71.6},
+    '2026-06': {A:74.9,P:99.6,Q:92.2,OEE:68.8}
+  };
+  return { weeks, monthSeed, lastWeek: 'W26' };
+}
+
+/* =========================================================================
+   4. Load / save the whole dashboard state
+   ========================================================================= */
+let DATA = null;
+
+async function loadData() {
+  DATA = await Store.get(STORE_KEY);
+  if (!DATA) { DATA = seedData(); await Store.set(STORE_KEY, DATA); }
+}
+
+async function saveWeekRecord(rec) {
+  DATA.weeks[rec.label] = rec;
+  DATA.lastWeek = rec.label;
+  await Store.set(STORE_KEY, DATA);
+}
+
+/* =========================================================================
+   5. Derived views: 5-week trend, monthly trend
+   ========================================================================= */
+function last5Weeks() {
+  const arr = Object.values(DATA.weeks).filter(w => w.startDate);
+  arr.sort((x,y) => x.startDate < y.startDate ? -1 : x.startDate > y.startDate ? 1 : 0);
+  return arr.slice(-5);
+}
+
+function monthlyTrend(scope) {
+  // fixed historical months (keyed by YYYY-MM)
+  const rows = Object.entries(DATA.monthSeed).map(([mk, p]) => ({ mk, label: monthKeyToLabel(mk), ...p }));
+  const seedKeys = new Set(Object.keys(DATA.monthSeed));
+
+  // months derived from uploaded weeks — skip any month already covered by the fixed seed
+  const byMonth = {};
+  for (const w of Object.values(DATA.weeks)) {
+    if (!w.monthKey || seedKeys.has(w.monthKey)) continue;
+    if (!byMonth[w.monthKey]) byMonth[w.monthKey] = [];
+    byMonth[w.monthKey].push(w);
+  }
+  for (const mk of Object.keys(byMonth)) {
+    const ws = byMonth[mk];
+    const totalDays = ws.reduce((s,w)=>s+(w.dayCount||1),0);
+    const wsum = (field) => ws.reduce((s,w)=> s + (w.pct[scope][field] ?? 0) * (w.dayCount||1), 0) / totalDays;
+    rows.push({ mk, label: monthKeyToLabel(mk), A: wsum('A'), P: wsum('P'), Q: wsum('Q'), OEE: wsum('OEE') });
+  }
+  rows.sort((x,y) => x.mk < y.mk ? -1 : x.mk > y.mk ? 1 : 0);
+  return rows.slice(-7); // sliding window of last 7 months
+}
+
+/* =========================================================================
+   6. Rendering
+   ========================================================================= */
+const chartInstances = {};
+if (typeof ChartDataLabels !== 'undefined') {
+  try { Chart.register(ChartDataLabels); } catch(e) {}
+  Chart.defaults.set('plugins.datalabels', { display:false });
+}
+const OEE_TARGET = 85;
+
+function currentScope(){ return document.getElementById('scopeSelect').value; }
+function currentWeekLabel(){ return document.getElementById('weekSelect').value; }
+
+function populateWeekSelect() {
+  const sel = document.getElementById('weekSelect');
+  const arr = Object.values(DATA.weeks).filter(w => w.startDate);
+  arr.sort((x,y) => x.startDate < y.startDate ? -1 : x.startDate > y.startDate ? 1 : 0);
+  const prev = sel.value;
+  sel.innerHTML = arr.map(w => `<option value="${w.label}">${w.label} (${w.startDate}~${w.endDate})</option>`).join('');
+  if (arr.find(w => w.label === prev)) sel.value = prev;
+  else if (DATA.lastWeek && arr.find(w=>w.label===DATA.lastWeek)) sel.value = DATA.lastWeek;
+  else if (arr.length) sel.value = arr[arr.length-1].label;
+}
+
+function drawGauge(canvasId, value, targetPct, color) {
+  const canvas = document.getElementById(canvasId);
+  // Same fix as the bar charts: size the drawing buffer to the actual on-screen
+  // CSS size so the arc stays a true circle. A fixed internal buffer stretched
+  // via CSS width:100% gets distorted into an ellipse whenever the container
+  // width differs from the buffer's native size — which skews every angle on
+  // the arc (including the target tick) away from its correct visual position.
+  const cssW = canvas.clientWidth || 280;
+  const cssH = canvas.clientHeight || 170;
+  canvas.width = cssW;
+  canvas.height = cssH;
+  const ctx = canvas.getContext('2d');
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+  if (value === null || value === undefined) {
+    ctx.fillStyle = '#bbb'; ctx.font = '13px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('데이터 없음', W/2, H*0.6);
+    return;
+  }
+  const cx = W / 2, cy = H * 0.82, r = Math.min(W * 0.38, H * 0.62);
+  const lw = Math.max(10, r * 0.32);
+  const v = Math.max(0, Math.min(100, value));
+
+  ctx.lineCap = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = '#e6e6e6';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 2*Math.PI); ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + Math.PI*(v/100)); ctx.stroke();
+
+  const tAngle = Math.PI + Math.PI*(targetPct/100);
+  ctx.lineCap = 'butt'; ctx.lineWidth = 3; ctx.strokeStyle = '#222';
+  ctx.beginPath();
+  ctx.moveTo(cx+Math.cos(tAngle)*(r-lw/2-4), cy+Math.sin(tAngle)*(r-lw/2-4));
+  ctx.lineTo(cx+Math.cos(tAngle)*(r+lw/2+4), cy+Math.sin(tAngle)*(r+lw/2+4));
+  ctx.stroke();
+
+  ctx.fillStyle = color; ctx.font = 'bold 26px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(v.toFixed(1)+'%', cx, cy - r*0.35);
+  ctx.fillStyle = '#999'; ctx.font = '10px Arial';
+  ctx.fillText('0%', cx-r-4, cy+4);
+  ctx.fillText('100%', cx+r+8, cy+4);
+}
+
+/* ---------- Period-mode (custom date range) aggregation, reusing cached raw A/P/Q ---------- */
+function periodSummaryFromStore(startDate, endDate, scope){
+  if (!DATA.rawA || !DATA.rawP || !DATA.rawQ) return {A:null,P:null,Q:null,OEE:null};
+  const inRange = r => r['일자'] >= startDate && r['일자'] <= endDate && (scope==='all' || r['구분']==='정규');
+  const aSel = DATA.rawA.rows.filter(inRange);
+  const pSel = DATA.rawP.rows.filter(inRange).filter(r => r['가동시간_분'] && num(r['가동시간_분'])>0 && r['Avg_shot'] && r['CT_STD']);
+  const qSel = DATA.rawQ.rows.filter(inRange).filter(r => num(r['Qty_Total'])>0);
+  const plan = aSel.reduce((s,r)=>s+num(r['계획시간_분']),0);
+  const run = aSel.reduce((s,r)=>s+num(r['가동시간_분']),0);
+  let idealSum=0, pRunSum=0;
+  for (const r of pSel) { const rn=num(r['가동시간_분']); idealSum += Math.min(num(r['Avg_shot'])*num(r['CT_STD'])/60, rn); pRunSum += rn; }
+  const qtyTotal = qSel.reduce((s,r)=>s+num(r['Qty_Total']),0);
+  const qtyGood = qSel.reduce((s,r)=>s+num(r['Qty_Good']),0);
+  const A = plan>0 ? run/plan*100 : null;
+  const P = pRunSum>0 ? idealSum/pRunSum*100 : null;
+  const Q = qtyTotal>0 ? qtyGood/qtyTotal*100 : null;
+  const OEE = (A!=null&&P!=null&&Q!=null) ? A*P*Q/10000 : null;
+  return {A,P,Q,OEE};
+}
+
+function dailyFromStore(startDate, endDate){
+  if (!DATA.rawA) return {dates:[], A:[]};
+  const rows = DATA.rawA.rows.filter(r => r['일자']>=startDate && r['일자']<=endDate && r['구분']==='정규');
+  const byDate = {};
+  for (const r of rows) {
+    const d = r['일자'];
+    if (!byDate[d]) byDate[d] = {plan:0, run:0};
+    byDate[d].plan += num(r['계획시간_분']); byDate[d].run += num(r['가동시간_분']);
+  }
+  const dates = Object.keys(byDate).sort();
+  const A = dates.map(d => byDate[d].plan>0 ? byDate[d].run/byDate[d].plan*100 : null);
+  return {dates, A};
+}
+
+function isPeriodMode(){ return document.getElementById('viewModeSelect').value === 'period'; }
+
+function onViewModeChange(){
+  const mode = document.getElementById('viewModeSelect').value;
+  document.getElementById('weekModeGroup').style.display = mode==='week' ? 'flex' : 'none';
+  document.getElementById('periodModeGroup').style.display = mode==='period' ? 'flex' : 'none';
+  if (mode === 'period') {
+    const sEl = document.getElementById('periodStart'), eEl = document.getElementById('periodEnd');
+    if (!sEl.value || !eEl.value) {
+      const weeks = Object.values(DATA.weeks).filter(w=>w.startDate).sort((a,b)=>a.startDate<b.startDate?-1:1);
+      if (weeks.length) { sEl.value = weeks[0].startDate; eEl.value = weeks[weeks.length-1].endDate; }
+    }
+  }
+  renderAll();
+}
+
+function renderGauges(){
+  const s = currentScope();
+  let p, titleText;
+  if (isPeriodMode()) {
+    const sd = document.getElementById('periodStart').value, ed = document.getElementById('periodEnd').value;
+    p = (sd && ed) ? periodSummaryFromStore(sd, ed, s) : {A:null,P:null,Q:null};
+    titleText = `목표 대비 실적 (${sd||'-'} ~ ${ed||'-'})`;
+  } else {
+    const w = DATA.weeks[currentWeekLabel()];
+    p = w ? w.pct[s] : {A:null,P:null,Q:null};
+    titleText = `목표 대비 실적 (${currentWeekLabel()||'-'})`;
+  }
+  document.getElementById('gaugeWeekTitle').textContent = titleText;
+  drawGauge('gauge-a', p.A, 89, '#2196F3');
+  drawGauge('gauge-p', p.P, 99, '#4CAF50');
+  drawGauge('gauge-q', p.Q, 96.5, '#FF9800');
+}
+
+function fmtPct(v){ return v===null||v===undefined ? null : Number(v.toFixed(1)); }
+
+function fillRoundedBar(ctx, x, y, w, h, radius, colorTop, colorBottom){
+  if (h <= 0) return;
+  const r = Math.min(radius, w/2, h);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, y+h);
+  ctx.lineTo(x, y+r);
+  ctx.arcTo(x, y, x+r, y, r);
+  ctx.lineTo(x+w-r, y);
+  ctx.arcTo(x+w, y, x+w, y+r, r);
+  ctx.lineTo(x+w, y+h);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, y, 0, y+h);
+  grad.addColorStop(0, colorTop);
+  grad.addColorStop(1, colorBottom || colorTop);
+  ctx.fillStyle = grad;
+  ctx.shadowColor = 'rgba(0,0,0,0.10)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBarChart(canvasId, labels, series, target, yMax){
+  const canvas = document.getElementById(canvasId);
+  // Match the canvas drawing buffer to its actual on-screen CSS size (1 canvas px = 1 CSS px),
+  // so pixel positions here line up exactly with the HTML table's fixed-width columns below —
+  // a canvas stretched from a fixed internal buffer via CSS would drift out of alignment
+  // whenever the container width isn't exactly the buffer's native size.
+  const cssW = canvas.clientWidth || 720;
+  const cssH = canvas.clientHeight || 270;
+  canvas.width = cssW;
+  canvas.height = cssH;
+  const ctx = canvas.getContext('2d');
+  const W = cssW, H = cssH;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!labels.length) {
+    ctx.fillStyle = '#bbb'; ctx.font = '13px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('데이터 없음', W/2, H/2);
+    return;
+  }
+
+  const ROWLABEL_W = 72; // must match table.mini td.rowlabel/th.rowlabel CSS width
+  const left = ROWLABEL_W, right = W - 2, top = 30, bottom = H - 28;
+  const plotW = right - left, plotH = bottom - top;
+  const yToPix = v => bottom - (v / yMax) * plotH;
+
+  // gridlines + y-axis labels
+  ctx.font = '10px "Segoe UI", Arial'; ctx.fillStyle = '#9aa1ab'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.strokeStyle = '#eef0f3'; ctx.lineWidth = 1;
+  for (let pct = 0; pct <= yMax; pct += 20) {
+    const y = yToPix(pct);
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+    ctx.fillText(pct + '%', left - 6, y);
+  }
+
+  const n = labels.length;
+  const catW = plotW / n;
+  const nSeries = series.length;
+  const groupW = catW * 0.72;
+  const barW = groupW / nSeries;
+  const gap = catW * 0.28;
+
+  ctx.textAlign = 'center';
+  for (let i = 0; i < n; i++) {
+    const cx0 = left + i * catW + gap / 2;
+    for (let j = 0; j < nSeries; j++) {
+      const s = series[j];
+      const v = s.data[i];
+      if (v === null || v === undefined) continue;
+      const x0 = cx0 + j * barW;
+      const y0 = yToPix(Math.max(0, Math.min(yMax, v)));
+      fillRoundedBar(ctx, x0, y0, barW * 0.88, bottom - y0, 3, s.colorLight || s.color, s.color);
+      if (s.showLabel) {
+        ctx.fillStyle = '#333'; ctx.font = 'bold 10px "Segoe UI", Arial'; ctx.textBaseline = 'bottom';
+        ctx.fillText(v.toFixed(1) + '%', x0 + barW * 0.44, y0 - 4);
+      }
+    }
+    ctx.fillStyle = '#666'; ctx.font = '10px "Segoe UI", Arial'; ctx.textBaseline = 'top';
+    ctx.fillText(labels[i], left + i * catW + catW / 2, bottom + 6);
+  }
+
+  // target dashed line
+  if (target != null) {
+    const ty = yToPix(target);
+    ctx.strokeStyle = 'rgba(244,67,54,0.9)'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(left, ty); ctx.lineTo(right, ty); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // legend
+  ctx.font = '11px "Segoe UI", Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  let lx = left;
+  for (const s of series) {
+    ctx.fillStyle = s.color;
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(lx, 6, 10, 10, 2); ctx.fill(); }
+    else ctx.fillRect(lx, 6, 10, 10);
+    ctx.fillStyle = '#444';
+    ctx.fillText(s.name, lx + 14, 11);
+    lx += 14 + ctx.measureText(s.name).width + 16;
+  }
+  if (target != null) {
+    ctx.strokeStyle = 'rgba(244,67,54,0.9)'; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(lx, 11); ctx.lineTo(lx+16, 11); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#444'; ctx.fillText('Target', lx+20, 11);
+  }
+}
+
+function buildMiniTable(elId, labels, rows){
+  const el = document.getElementById(elId);
+  if (!labels.length) { el.innerHTML = '<tr><td class="rowlabel">데이터 없음</td></tr>'; return; }
+  let head = '<thead><tr><th class="rowlabel">구분</th>' + labels.map(l=>`<th>${l}</th>`).join('') + '</tr></thead>';
+  let body = '<tbody>' + rows.map(r=>{
+    const cells = r.values.map(v => `<td>${v===null||v===undefined ? '-' : (typeof v==='number'? v.toFixed(1)+'%' : v)}</td>`).join('');
+    const dot = r.color ? `<span class="swatch" style="background:${r.color}"></span>` : '';
+    return `<tr><td class="rowlabel">${dot}${r.label}</td>${cells}</tr>`;
+  }).join('') + '</tbody>';
+  el.innerHTML = head + body;
+}
+
+function renderMonthlyChart(){
+  const scope = currentScope();
+  const rows = monthlyTrend(scope);
+  const labels = rows.map(r=>r.label);
+  document.getElementById('monthlyTitle').textContent = `KPI PERFORMANCE (${labels[0]||'-'} ~ ${labels[labels.length-1]||'-'})`;
+  drawBarChart('chart-monthly', labels, [
+    { name:'A(%)', color:'#2196F3', colorLight:'#64B5F6', data: rows.map(r=>r.A), showLabel:true },
+    { name:'P(%)', color:'#FB8C00', colorLight:'#FFB74D', data: rows.map(r=>r.P), showLabel:true },
+    { name:'Q(%)', color:'#8E24AA', colorLight:'#BA68C8', data: rows.map(r=>r.Q), showLabel:true },
+    { name:'OEE(%)', color:'#F9A825', colorLight:'#FFD54F', data: rows.map(r=>r.OEE), showLabel:true }
+  ], OEE_TARGET, 110);
+  buildMiniTable('table-monthly', labels, [
+    {label:'A(%)', values:rows.map(r=>r.A), color:'#2196F3'},
+    {label:'P(%)', values:rows.map(r=>r.P), color:'#FF9800'},
+    {label:'Q(%)', values:rows.map(r=>r.Q), color:'#9C27B0'},
+    {label:'OEE(%)', values:rows.map(r=>r.OEE), color:'#FFC107'},
+    {label:'Target', values:labels.map(()=>OEE_TARGET), color:'#F44336'}
+  ]);
+}
+
+function render5WeekChart(){
+  const scope = currentScope();
+  const weeks = last5Weeks();
+  const labels = weeks.map(w=>w.label);
+  document.getElementById('weekTrendTitle').textContent = `KPI PERFORMANCE (${labels[0]||'-'} ~ ${labels[labels.length-1]||'-'})`;
+  const A = weeks.map(w=>w.pct[scope].A), P = weeks.map(w=>w.pct[scope].P), Q = weeks.map(w=>w.pct[scope].Q), OEE = weeks.map(w=>w.pct[scope].OEE);
+  drawBarChart('chart-5week', labels, [
+    { name:'A(%)', color:'#2196F3', colorLight:'#64B5F6', data:A, showLabel:true },
+    { name:'P(%)', color:'#FB8C00', colorLight:'#FFB74D', data:P, showLabel:true },
+    { name:'Q(%)', color:'#8E24AA', colorLight:'#BA68C8', data:Q, showLabel:true },
+    { name:'OEE(%)', color:'#F9A825', colorLight:'#FFD54F', data:OEE, showLabel:true }
+  ], OEE_TARGET, 110);
+  buildMiniTable('table-5week', labels, [
+    {label:'A(%)', values:A, color:'#2196F3'},
+    {label:'P(%)', values:P, color:'#FF9800'},
+    {label:'Q(%)', values:Q, color:'#9C27B0'},
+    {label:'OEE(%)', values:OEE, color:'#FFC107'},
+    {label:'Target', values:labels.map(()=>OEE_TARGET), color:'#F44336'}
+  ]);
+}
+
+function renderDailyChart(){
+  let dates, A, titleText;
+  if (isPeriodMode()) {
+    const sd = document.getElementById('periodStart').value, ed = document.getElementById('periodEnd').value;
+    const d = (sd && ed) ? dailyFromStore(sd, ed) : {dates:[], A:[]};
+    dates = d.dates; A = d.A;
+    titleText = `A(%) PERFORMANCE (${sd||'-'} ~ ${ed||'-'})`;
+  } else {
+    const w = DATA.weeks[currentWeekLabel()];
+    dates = w ? w.dailyRegular.dates : [];
+    A = w ? w.dailyRegular.A : [];
+    titleText = `A(%) PERFORMANCE (${currentWeekLabel()||'-'})`;
+  }
+  document.getElementById('dailyTitle').textContent = titleText;
+  if (chartInstances.daily) chartInstances.daily.destroy();
+  const ctx = document.getElementById('chart-daily-a').getContext('2d');
+  chartInstances.daily = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: dates,
+      datasets:[
+        { label:'A(%)', data:A, borderColor:'rgba(33,150,243,1)', backgroundColor:'rgba(33,150,243,1)', borderWidth:3, tension:.4, fill:false, pointRadius:6, pointHoverRadius:8, spanGaps:true,
+          datalabels:{ display:true, align:'top', offset:8, color:'#000', font:{weight:'bold', size:12}, formatter:v=> v===null||v===undefined ? '' : v.toFixed(1)+'%' } },
+        { label:'Target (89%)', data:dates.map(()=>89), borderColor:'rgba(244,67,54,1)', borderDash:[5,5], borderWidth:2, pointRadius:0, datalabels:{display:false} }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, max:100, ticks:{callback:v=>v+'%'} } },
+      plugins:{ legend:{ position:'top' } }
+    }
+  });
+  buildMiniTable('table-daily', dates, [
+    {label:'A(%)', values:A, color:'#2196F3'},
+    {label:'Target(89%)', values:dates.map(()=>89), color:'#F44336'}
+  ]);
+}
+
+function renderAll(){
+  populateWeekSelect();
+  try { renderGauges(); } catch(e){ console.error('gauge render error', e); }
+  try { renderMonthlyChart(); } catch(e){ console.error('monthly render error', e); }
+  try { render5WeekChart(); } catch(e){ console.error('5week render error', e); }
+  try { renderDailyChart(); } catch(e){ console.error('daily render error', e); }
+}
+
+/* =========================================================================
+   7. File upload → compute → save → re-render
+   ========================================================================= */
+function setStatus(msg, isError){
+  const el = document.getElementById('statusLine');
+  el.textContent = msg;
+  el.className = 'status-line' + (isError ? ' err' : '');
+}
+
+/* ---- Google Sheets live sync ---- */
+const SHEET_PUB_KEY = '2PACX-1vQ6U8gG0Mr3oJ-5XOOzr7Eh_oZGc-BGHFG0n1__eor4Zc8aJaMuf01NXCAHJECH6U8aUvtnQGLKD5-_';
+const SHEET_GIDS = ['345197688', '287133604', '116850424'];
+
+function sheetCsvUrl(gid){
+  return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_KEY}/pub?gid=${gid}&single=true&output=csv`;
+}
+
+async function fetchSheetCSV(gid){
+  const res = await fetch(sheetCsvUrl(gid), { cache: 'no-store' });
+  if (!res.ok) throw new Error(`시트(gid=${gid}) 응답 오류: ${res.status}`);
+  return await res.text();
+}
+
+function classifyColumns(rows){
+  if (!rows.length) return null;
+  const cols = Object.keys(rows[0]);
+  if (cols.includes('계획시간_분') && cols.includes('가동시간_분') && cols.includes('Losstime_분')) return 'A';
+  if (cols.includes('Avg_shot') && cols.includes('CT_STD')) return 'P';
+  if (cols.includes('Qty_Good') && cols.includes('불량수량')) return 'Q';
+  return null;
+}
+
+function splitByWeek(rows){
+  const groups = {};
+  for (const r of rows) {
+    const wk = r['주차'];
+    if (!wk) continue;
+    if (!groups[wk]) groups[wk] = [];
+    groups[wk].push(r);
+  }
+  return groups;
+}
+
+function buildAllWeekRecords(aRows, pRows, qRows){
+  const aG = splitByWeek(aRows), pG = splitByWeek(pRows), qG = splitByWeek(qRows);
+  const labels = new Set([...Object.keys(aG), ...Object.keys(pG), ...Object.keys(qG)]);
+  const records = {};
+  for (const label of labels) {
+    const aR = aG[label] || [];
+    if (!aR.length) continue; // need A rows to know the dates for this week
+    records[label] = buildWeekRecord(aR, pG[label] || [], qG[label] || []);
+  }
+  return records;
+}
+
+async function syncFromGoogleSheets(){
+  const texts = await Promise.all(SHEET_GIDS.map(fetchSheetCSV));
+  const parsedSets = texts.map(parseCSV);
+  let aRows=null, pRows=null, qRows=null;
+  for (const rows of parsedSets) {
+    const kind = classifyColumns(rows);
+    if (kind === 'A') aRows = rows;
+    else if (kind === 'P') pRows = rows;
+    else if (kind === 'Q') qRows = rows;
+  }
+  if (!aRows || !pRows || !qRows) {
+    throw new Error('A/P/Q 탭을 컬럼 구조로 자동 식별하지 못했습니다. 시트 컬럼명이 원본과 같은지 확인해주세요.');
+  }
+  const records = buildAllWeekRecords(aRows, pRows, qRows);
+  const labels = Object.keys(records);
+  if (!labels.length) throw new Error('시트에서 주차 데이터를 찾지 못했습니다.');
+  // live data overrides any seed placeholder with the same week label
+  for (const [label, rec] of Object.entries(records)) DATA.weeks[label] = rec;
+  labels.sort((x,y) => records[x].startDate < records[y].startDate ? -1 : 1);
+  DATA.lastWeek = labels[labels.length-1];
+  // Cache the raw A/P/Q-tab rows too (not just the aggregated weekly pct), so other
+  // pages sharing this same Store key (e.g. the Loss/Equipment analysis page,
+  // the Period Summary page) can reuse this exact live data without a separate fetch.
+  DATA.rawA = { header: Object.keys(aRows[0] || {}), rows: aRows, fetchedAt: Date.now() };
+  DATA.rawP = { header: Object.keys(pRows[0] || {}), rows: pRows, fetchedAt: Date.now() };
+  DATA.rawQ = { header: Object.keys(qRows[0] || {}), rows: qRows, fetchedAt: Date.now() };
+  await Store.set(STORE_KEY, DATA);
+  return labels;
+}
+
+async function onRefreshClick(){
+  try {
+    setStatus('구글시트에서 불러오는 중...');
+    const labels = await syncFromGoogleSheets();
+    populateWeekSelect();
+    document.getElementById('weekSelect').value = DATA.lastWeek;
+    renderAll();
+    setStatus(`동기화 완료 — 시트에서 ${labels.length}개 주차 확인 (${labels.join(', ')}). 최신 주차: ${DATA.lastWeek}`);
+  } catch(e){
+    console.error(e);
+    const hint = (e instanceof TypeError || /fetch/i.test(e.message))
+      ? ' → Claude 미리보기 창(아티팩트) 안에서는 보안 샌드박스가 외부 네트워크 요청을 막습니다. 이 HTML 파일을 다운로드해서 실제 브라우저(Chrome 등)로 직접 열어 다시 시도해주세요.'
+      : '';
+    setStatus('구글시트 연동 오류: ' + e.message + hint, true);
+  }
+}
+
+async function onResetClick(){
+  if (!confirm('저장된 모든 주차/월별 캐시를 초기화하시겠습니까? 구글시트 데이터는 새로고침 버튼으로 다시 불러올 수 있습니다.')) return;
+  await Store.delete(STORE_KEY);
+  DATA = seedData();
+  await Store.set(STORE_KEY, DATA);
+  populateWeekSelect();
+  renderAll();
+  setStatus('초기화되었습니다 (초기 이력 데이터로 복원). 필요하면 새로고침 버튼으로 구글시트를 다시 불러오세요.');
+}
+
+async function exportPDF(){
+  const btn = document.getElementById('btnExportPdf');
+  const target = document.querySelector('.container');
+  if (typeof html2canvas === 'undefined' || !window.jspdf) {
+    setStatus('PDF 생성 오류: PDF 라이브러리를 불러오지 못했습니다 (외부 CDN 접근이 막혀있는 환경일 수 있습니다). 이 HTML 파일을 다운로드해서 일반 브라우저(Chrome 등)로 열어 다시 시도해주세요.', true);
+    return;
+  }
+  const prevLabel = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ PDF 생성 중...'; }
+  setStatus('PDF 생성 중... (화면 크기에 따라 몇 초 걸릴 수 있습니다)');
+  try {
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#f2f4f7'
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW;
+    const imgH = canvas.height * imgW / canvas.width;
+
+    let heightLeft = imgH;
+    let position = 0;
+    pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+    heightLeft -= pageH;
+    while (heightLeft > 0) {
+      position -= pageH;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+      heightLeft -= pageH;
+    }
+
+    const weekLabel = (!isPeriodMode() && currentWeekLabel()) ? currentWeekLabel() : 'report';
+    const dateStr = new Date().toISOString().slice(0,10);
+    pdf.save(`STC_OEE_Dashboard_${weekLabel}_${dateStr}.pdf`);
+    setStatus('PDF 다운로드가 시작되었습니다.');
+  } catch(e) {
+    console.error(e);
+    setStatus('PDF 생성 오류: ' + e.message, true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = prevLabel; }
+  }
+}
+
+/* =========================================================================
+   8. Init — load cached/seed data first (so the page is never blank),
+      then try a live Google Sheets sync in the background.
+   ========================================================================= */
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await loadData();
+    populateWeekSelect();
+    renderAll();
+    setStatus(`캐시 불러오기 완료 — 마지막 주차: ${DATA.lastWeek || '-'}. 구글시트와 동기화 중...`);
+  } catch(e){
+    console.error(e);
+    setStatus('초기 로딩 오류: ' + e.message, true);
+  }
+  await onRefreshClick();
+});
+
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    if (!DATA) return;
+    try { renderGauges(); } catch(e){ console.error(e); }
+    try { renderMonthlyChart(); } catch(e){ console.error(e); }
+    try { render5WeekChart(); } catch(e){ console.error(e); }
+  }, 150);
+});
+</script>
+</body>
+</html>
