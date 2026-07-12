@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC 품질관리 Six Sigma 대시보드</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f2f4f7; color:#222; }
+  .container { max-width:1600px; margin:0 auto; padding:20px; }
+  header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); color:#fff; padding:22px 28px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  h1 { font-size:24px; margin-bottom:4px; }
+  header p.sub { font-size:13px; opacity:.85; }
+  .controls { display:flex; gap:16px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+  .control-group { display:flex; gap:8px; align-items:center; }
+  label { font-weight:600; color:#fff; font-size:13px; }
+  select { min-width:150px; padding:7px 14px; border:none; border-radius:4px; background:#fff; cursor:pointer; font-size:13px; }
+  input[type=date] { padding:6px 10px; border:none; border-radius:4px; background:#fff; font-size:13px; color:#222; }
+  #btnRefresh { padding:8px 16px; border:none; border-radius:4px; font-size:13px; font-weight:700; cursor:pointer; background:#ff6b6b; color:#fff; }
+  #btnRefresh:hover { background:#ff5252; }
+  .status-line { font-size:12px; margin-top:10px; color:#e8f0ff; min-height:16px; }
+  .status-line.err { color:#ffd2d2; font-weight:700; }
+
+  .kpi-strip { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
+  @media (max-width:1100px){ .kpi-strip{ grid-template-columns:repeat(2,1fr); } }
+  .kpi-card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:16px 18px; text-align:center; border-top:4px solid #7c4dff; }
+  .kpi-card .kpi-label { font-size:12px; color:#777; font-weight:600; margin-bottom:6px; }
+  .kpi-card .kpi-value { font-size:26px; font-weight:800; color:#2a2a3a; }
+  .kpi-card .kpi-sub { font-size:11px; color:#999; margin-top:4px; }
+
+  .quad-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:1100px){ .quad-grid{ grid-template-columns:1fr; } }
+  .quad-card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:18px 20px 22px; display:flex; flex-direction:column; margin-bottom:18px; }
+  .quad-title { font-size:16px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:3px solid #7c4dff; }
+  .chart-wrap { position:relative; width:100%; height:280px; }
+  .chart-wrap canvas { width:100%; height:100%; display:block; }
+  .chart-wrap.tall { height:340px; }
+  .footnote { font-size:11px; color:#999; margin-top:10px; line-height:1.6; }
+
+  .grade-badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700; color:#fff; }
+  .grade-red { background:#e53935; }
+  .grade-orange { background:#fb8c00; }
+  .grade-yellow { background:#c0a000; }
+  .grade-green { background:#43a047; }
+  .grade-blue { background:#1e88e5; }
+
+  table.dtable { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px; }
+  table.dtable th, table.dtable td { padding:7px 8px; border-bottom:1px solid #eee; text-align:right; }
+  table.dtable th { background:#f6f4ff; color:#4a3aa0; text-align:center; font-size:12px; position:sticky; top:0; }
+  table.dtable td:first-child, table.dtable th:first-child { text-align:left; }
+  table.dtable tbody tr:hover { background:#faf9ff; }
+  .table-wrap { max-height:420px; overflow-y:auto; border:1px solid #eee; border-radius:6px; }
+  .scroll-x { overflow-x:auto; }
+
+  .sigma-scale { display:flex; margin-top:16px; border-radius:6px; overflow:hidden; height:28px; font-size:11px; }
+  .sigma-scale div { flex:1; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:700; position:relative; }
+  .sigma-marker { position:absolute; top:-22px; font-size:11px; font-weight:800; color:#333; white-space:nowrap; transform:translateX(-50%); }
+  .sigma-marker-line { position:absolute; top:0; width:2px; height:28px; background:#222; }
+
+  .eq-tags { font-size:10.5px; color:#666; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🎯 STC 품질관리 Six Sigma 분석 대시보드</h1>
+    <p class="sub">PPM / DPMO / Sigma Level 기반 품질 집중관리 — DC1~DC23 · 원자재 투입 대비 불량 관리</p>
+    <div class="controls">
+      <div class="control-group">
+        <label>분석 범위</label>
+        <select id="scopeSelect" onchange="onScopeChange()">
+          <option value="all">전체 기간(시트 전체)</option>
+          <option value="last1">최근 1주</option>
+          <option value="last2" selected>최근 2주</option>
+          <option value="week">주차 선택</option>
+          <option value="custom">기간 직접 선택</option>
+        </select>
+      </div>
+      <div class="control-group" id="weekSelectWrap" style="display:none;">
+        <label>주차</label>
+        <select id="weekSelect" onchange="renderAll()"></select>
+      </div>
+      <div class="control-group" id="customDateWrap" style="display:none;">
+        <label>시작일</label>
+        <input type="date" id="startDate" onchange="renderAll()">
+        <label>종료일</label>
+        <input type="date" id="endDate" onchange="renderAll()">
+      </div>
+      <div class="control-group">
+        <label>목표 시그마 수준</label>
+        <select id="targetSigmaSelect" onchange="renderAll()">
+          <option value="3">3σ (66,807 PPM · 업계 평균)</option>
+          <option value="4" selected>4σ (6,210 PPM · 업계 우수)</option>
+          <option value="5">5σ (233 PPM · 업계 최우수)</option>
+          <option value="6">6σ (3.4 PPM · World Class)</option>
+        </select>
+      </div>
+      <button id="btnRefresh" onclick="onRefreshClick()">🔄 구글시트 새로고침</button>
+    </div>
+    <div class="status-line" id="statusLine">초기화 중...</div>
+  </header>
+
+  <div class="kpi-strip">
+    <div class="kpi-card"><div class="kpi-label">총 검사수량</div><div class="kpi-value" id="kpiTotal">-</div><div class="kpi-sub" id="kpiTotalSub">&nbsp;</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 불량수량</div><div class="kpi-value" id="kpiBad">-</div><div class="kpi-sub" id="kpiBadSub">&nbsp;</div></div>
+    <div class="kpi-card" style="border-top-color:#e53935;"><div class="kpi-label">불량 PPM</div><div class="kpi-value" id="kpiPPM">-</div><div class="kpi-sub" id="kpiPPMSub">&nbsp;</div></div>
+    <div class="kpi-card" style="border-top-color:#1e88e5;"><div class="kpi-label">Sigma Level</div><div class="kpi-value" id="kpiSigma">-</div><div class="kpi-sub">1.5σ Shift 적용 (장기)</div></div>
+    <div class="kpi-card" style="border-top-color:#43a047;"><div class="kpi-label">품질 등급</div><div class="kpi-value" id="kpiGrade">-</div><div class="kpi-sub" id="kpiGradeSub">&nbsp;</div></div>
+  </div>
+
+  <div class="quad-grid">
+    <div class="quad-card">
+      <div class="quad-title">📊 Sigma Level 게이지</div>
+      <div class="chart-wrap"><canvas id="chart-gauge"></canvas></div>
+      <div class="sigma-scale" id="sigmaScale"></div>
+      <div class="footnote">※ Sigma Level = Φ⁻¹(1 − PPM/1,000,000) + 1.5 (장기 표준 1.5σ Shift 적용). 검사수량 대비 불량수량 1건을 1개 결점(Opportunity=1)으로 간주한 근사 DPMO 기준입니다.</div>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">📈 불량유형 Pareto 분석 (80/20 법칙)</div>
+      <div class="chart-wrap"><canvas id="chart-pareto"></canvas></div>
+      <div class="footnote" id="paretoNote">※ 세부 사유 미기재(불량수량 - 사유합계) 건은 '미분류'로 별도 집계됩니다.</div>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">🏭 설비별 PPM 랭킹 (Worst → Best)</div>
+      <div class="chart-wrap tall"><canvas id="chart-eqrank"></canvas></div>
+      <div class="footnote">※ 점선은 목표 시그마 수준의 PPM 기준선입니다. 막대 색상은 해당 설비의 Sigma 등급을 나타냅니다.</div>
+    </div>
+
+    <div class="quad-card">
+      <div class="quad-title">📉 일별 불량률 관리도 (p-Chart)</div>
+      <div class="chart-wrap tall"><canvas id="chart-control"></canvas></div>
+      <div class="footnote">※ 회색 밴드는 UCL/LCL(p̄ ± 3σ, 일별 검사수량 반영), 빨간 점은 관리이탈(Out of Control) 일자입니다.</div>
+    </div>
+  </div>
+
+  <div class="quad-card">
+    <div class="quad-title">📉 Worst-5 트렌드 (설비 / 모델별 불량율 · 점유율 추이)</div>
+    <div class="controls" style="margin-bottom:10px;">
+      <div class="control-group">
+        <label style="color:#555;">구분</label>
+        <select id="trendGroupSelect" onchange="renderTrendChart()">
+          <option value="eq">설비</option>
+          <option value="model">모델</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label style="color:#555;">지표</label>
+        <select id="trendMetricSelect" onchange="renderTrendChart()">
+          <option value="rate">불량율 추이</option>
+          <option value="share">불량 점유율 추이</option>
+        </select>
+      </div>
+    </div>
+    <div class="chart-wrap tall"><canvas id="chart-trend"></canvas></div>
+    <div id="trendLegend" style="display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:11.5px;color:#555;"></div>
+    <div class="footnote" id="trendFootnote">※ 전체 누적 데이터 기준 Worst-5 추이입니다.</div>
+  </div>
+
+  <div class="quad-card">
+    <div class="quad-title">🧩 모델별 품질 현황 (Model-level PPM/Sigma) — W28 기준 스냅샷</div>
+    <div class="chart-wrap tall"><canvas id="chart-model"></canvas></div>
+    <div style="margin-top:12px;">
+      <input type="text" id="modelSearchInput" placeholder="🔍 모델명 검색 (전체 모델 관리)" oninput="renderModelTable()"
+        style="width:100%;max-width:320px;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+    </div>
+    <div class="table-wrap scroll-x" style="margin-top:14px;">
+      <table class="dtable" id="table-model">
+        <thead><tr><th>모델명</th><th>설비</th><th>검사수량</th><th>불량수량</th><th>PPM</th><th>Sigma</th><th>등급</th><th>주요 불량유형</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="footnote">※ 이 표는 2026-07-01~07-07(W28) 업로드된 원본 참고자료(Model 컬럼 포함)를 기준으로 한 스냅샷입니다. 실시간 구글시트(A/P/Q 3탭)에는 Model 컬럼이 없어 자동 갱신되지 않습니다 — 지속적인 모델별 추적을 원하시면 품질(Q) 시트에 Model 컬럼 추가를 권장드립니다.</div>
+  </div>
+
+  <div class="quad-card">
+    <div class="quad-title">📋 설비별 상세 (PPM / Sigma / 등급)</div>
+    <div class="table-wrap scroll-x">
+      <table class="dtable" id="table-eq">
+        <thead><tr><th>설비</th><th>검사수량</th><th>불량수량</th><th>불량률(%)</th><th>PPM</th><th>Sigma Level</th><th>등급</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="quad-card">
+    <div class="quad-title">🔄 PDCA 개선관리 (Worst 항목 개선 전 · 후 비교)</div>
+    <div class="footnote" style="margin-bottom:10px;">
+      Plan(문제·목표) → Do(조치) → Check(개선 전/후 실측 자동비교) → Act(표준화) 흐름으로 관리합니다.
+      대상 기간(개선전/개선후 시작·종료일)만 시트에 입력하면, 실제 불량률은 A/P/Q·Model상세 데이터에서 자동으로 계산됩니다.
+    </div>
+    <div class="table-wrap scroll-x">
+      <table class="dtable" id="table-pdca">
+        <thead><tr>
+          <th>구분</th><th>대상</th><th>문제현상 (Plan)</th><th>목표</th><th>개선조치 (Do)</th>
+          <th>개선전 불량률</th><th>개선후 불량률</th><th>개선효과</th><th>상태</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="footnote" id="pdcaFootnote">※ PDCA 시트 미연동 상태입니다.</div>
+  </div>
+
+</div>
+
+<script>
+/* =========================================================================
+   0. Storage abstraction (same pattern/key family as other STC OEE pages)
+   ========================================================================= */
+const Store = {
+  async get(key){
+    if (window.storage) { try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; } catch(e){ return null; } }
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e){ return null; }
+  },
+  async set(key, value){
+    const str = JSON.stringify(value);
+    if (window.storage) { try { await window.storage.set(key, str); return true; } catch(e){} }
+    try { localStorage.setItem(key, str); return true; } catch(e){ return false; }
+  }
+};
+const STORE_KEY = 'stc_oee_dashboard_v1'; // shared cache key with the other STC OEE pages
+
+/* =========================================================================
+   1. CSV parsing + numeric helpers
+   ========================================================================= */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  const header = rows[0] || [];
+  return rows.slice(1)
+    .filter(r => !(r.length === 1 && r[0] === ''))
+    .map(r => { const obj = {}; header.forEach((h,i)=> obj[h]=r[i]); return obj; });
+}
+const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+/* =========================================================================
+   2. Six Sigma math — inverse normal CDF (Acklam's rational approximation)
+   ========================================================================= */
+function invNorm(p) {
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return Infinity;
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+  const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+  const plow = 0.02425, phigh = 1 - plow;
+  let q, r;
+  if (p < plow) {
+    q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else if (p <= phigh) {
+    q = p - 0.5; r = q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  } else {
+    q = Math.sqrt(-2 * Math.log(1-p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+}
+function sigmaFromPPM(ppm) {
+  if (ppm == null) return null;
+  const p = Math.max(1e-9, Math.min(1 - 1e-9, 1 - ppm/1e6));
+  return invNorm(p) + 1.5;
+}
+// Standard long-term (1.5σ shift) Six Sigma reference table — well-known industry values
+const SIGMA_TABLE = [
+  {sigma:1, ppm:697672},{sigma:1.5, ppm:501350},{sigma:2, ppm:308538},{sigma:2.5, ppm:158655},
+  {sigma:3, ppm:66807},{sigma:3.5, ppm:22750},{sigma:4, ppm:6210},{sigma:4.5, ppm:1350},
+  {sigma:5, ppm:233},{sigma:5.5, ppm:32},{sigma:6, ppm:3.4}
+];
+function gradeFromSigma(sigma) {
+  if (sigma == null) return {label:'-', cls:''};
+  if (sigma >= 6) return {label:'World Class (6σ)', cls:'grade-blue'};
+  if (sigma >= 5) return {label:'최우수 (5~6σ)', cls:'grade-green'};
+  if (sigma >= 4) return {label:'우수 (4~5σ)', cls:'grade-green'};
+  if (sigma >= 3) return {label:'평균 (3~4σ)', cls:'grade-yellow'};
+  if (sigma >= 2) return {label:'개선필요 (2~3σ)', cls:'grade-orange'};
+  return {label:'긴급개선 (<2σ)', cls:'grade-red'};
+}
+function colorFromSigma(sigma) {
+  if (sigma == null) return '#999';
+  if (sigma >= 5) return '#43a047';
+  if (sigma >= 4) return '#7cb342';
+  if (sigma >= 3) return '#c0a000';
+  if (sigma >= 2) return '#fb8c00';
+  return '#e53935';
+}
+
+/* =========================================================================
+   3. Quality aggregation from the Q(품질) raw rows
+   ========================================================================= */
+const DEFECT_COLS = ['미성형','깨짐','찍힘','자동불량','표면오염','기포','핀파손','부풀음','박리','수축','스크래치','소착','언밸런스','품질확인','버','변형','제품끼임','밀핀짧음','밀핀긺','게이트파임','홀틀어짐','게이트파손','중량미달','스펙미달','비스켓두께미달','기타'];
+
+function computeQualityStats(rows) {
+  let total = 0, bad = 0, good = 0;
+  const byEq = {}, byDay = {};
+  const paretoRaw = {};
+  DEFECT_COLS.forEach(c => paretoRaw[c] = 0);
+  for (const r of rows) {
+    const t = num(r['Qty_Total']);
+    if (t <= 0) continue;
+    const g = num(r['Qty_Good']), b = num(r['불량수량']);
+    total += t; good += g; bad += b;
+    const eq = r['설비명'];
+    if (!byEq[eq]) byEq[eq] = { total:0, bad:0 };
+    byEq[eq].total += t; byEq[eq].bad += b;
+    const d = r['일자'];
+    if (!byDay[d]) byDay[d] = { total:0, bad:0 };
+    byDay[d].total += t; byDay[d].bad += b;
+    let rowDetailSum = 0;
+    for (const c of DEFECT_COLS) { const v = num(r[c]); paretoRaw[c] += v; rowDetailSum += v; }
+    const gap = b - rowDetailSum;
+    if (gap > 0) paretoRaw['미분류'] = (paretoRaw['미분류']||0) + gap;
+  }
+  const ppm = total>0 ? bad/total*1e6 : null;
+  return { total, good, bad, ppm, sigma: sigmaFromPPM(ppm), byEq, byDay, paretoRaw };
+}
+
+/* =========================================================================
+   4. Canvas drawing helpers — dynamic buffer sizing (avoids ellipse/alignment
+      distortion, per established STC dashboard fixes)
+   ========================================================================= */
+function sizeCanvas(canvas) {
+  const cssW = canvas.clientWidth || 600;
+  const cssH = canvas.clientHeight || 280;
+  canvas.width = cssW; canvas.height = cssH;
+  return { W: cssW, H: cssH, ctx: canvas.getContext('2d') };
+}
+
+function drawSigmaGauge(canvasId, sigmaValue, targetSigma) {
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (sigmaValue == null) {
+    ctx.fillStyle = '#bbb'; ctx.font = '13px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('데이터 없음', W/2, H*0.6); return;
+  }
+  const cx = W/2, cy = H*0.82, r = Math.min(W*0.38, H*0.62);
+  const lw = Math.max(10, r*0.32);
+  const maxSigma = 6;
+  const v = Math.max(0, Math.min(maxSigma, sigmaValue));
+  ctx.lineCap = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = '#e6e6e6';
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 2*Math.PI); ctx.stroke();
+  ctx.strokeStyle = colorFromSigma(sigmaValue);
+  ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, Math.PI + Math.PI*(v/maxSigma)); ctx.stroke();
+  // target marker
+  const tAngle = Math.PI + Math.PI*(Math.min(maxSigma,targetSigma)/maxSigma);
+  ctx.lineCap='butt'; ctx.lineWidth=3; ctx.strokeStyle='#222';
+  ctx.beginPath();
+  ctx.moveTo(cx+Math.cos(tAngle)*(r-lw/2-4), cy+Math.sin(tAngle)*(r-lw/2-4));
+  ctx.lineTo(cx+Math.cos(tAngle)*(r+lw/2+4), cy+Math.sin(tAngle)*(r+lw/2+4));
+  ctx.stroke();
+  ctx.fillStyle = colorFromSigma(sigmaValue); ctx.font='bold 28px Arial'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(v.toFixed(2)+'σ', cx, cy - r*0.35);
+  ctx.fillStyle='#999'; ctx.font='10px Arial';
+  ctx.fillText('0σ', cx-r-6, cy+4);
+  ctx.fillText('6σ', cx+r+10, cy+4);
+}
+
+function drawParetoChart(canvasId, items) {
+  // items: [{label, value}], sorted desc, already includes 미분류
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (!items.length) { ctx.fillStyle='#bbb'; ctx.textAlign='center'; ctx.fillText('데이터 없음', W/2, H/2); return; }
+  const top = items.slice(0, 10);
+  const total = items.reduce((s,i)=>s+i.value,0);
+  const leftM = 56, rightM = 46, topM = 18, botM = 70;
+  const plotW = W - leftM - rightM, plotH = H - topM - botM;
+  const maxV = top[0].value;
+  const barW = plotW / top.length * 0.62;
+  const gap = plotW / top.length;
+  let cum = 0;
+  ctx.font = '10px Arial';
+  // gridlines / y-axis (count)
+  ctx.strokeStyle = '#eee'; ctx.fillStyle = '#999'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  for (let i=0;i<=4;i++){
+    const y = topM + plotH - (plotH*i/4);
+    ctx.beginPath(); ctx.moveTo(leftM,y); ctx.lineTo(leftM+plotW,y); ctx.stroke();
+    ctx.fillText(Math.round(maxV*i/4), leftM-6, y);
+  }
+  // bars
+  top.forEach((it,i)=>{
+    const x = leftM + gap*i + (gap-barW)/2;
+    const h = plotH * (it.value/maxV);
+    const y = topM + plotH - h;
+    ctx.fillStyle = it.label === '미분류' ? '#bdbdbd' : '#7c4dff';
+    ctx.fillRect(x,y,barW,h);
+    ctx.fillStyle = '#333'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
+    ctx.fillText(it.value.toLocaleString(), x+barW/2, y-6);
+    // rotated label
+    ctx.save();
+    ctx.translate(x+barW/2, topM+plotH+8);
+    ctx.rotate(-Math.PI/5);
+    ctx.textAlign='right'; ctx.fillStyle='#555'; ctx.font='10px Arial';
+    ctx.fillText(it.label, 0, 0);
+    ctx.restore();
+  });
+  // cumulative line (right axis 0-100%)
+  ctx.strokeStyle = '#e53935'; ctx.lineWidth = 2; ctx.beginPath();
+  top.forEach((it,i)=>{
+    cum += it.value;
+    const pct = cum/total*100;
+    const x = leftM + gap*i + gap/2;
+    const y = topM + plotH - (plotH*pct/100);
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  cum = 0;
+  top.forEach((it,i)=>{
+    cum += it.value;
+    const pct = cum/total*100;
+    const x = leftM + gap*i + gap/2;
+    const y = topM + plotH - (plotH*pct/100);
+    ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fill();
+    if (i===2 || i===top.length-1) { ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText(pct.toFixed(0)+'%', x, y-8); }
+  });
+  // 80% reference line
+  const y80 = topM + plotH - (plotH*80/100);
+  ctx.strokeStyle = '#999'; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(leftM,y80); ctx.lineTo(leftM+plotW,y80); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#999'; ctx.textAlign='left'; ctx.font='9px Arial'; ctx.fillText('80%', leftM+plotW+2, y80);
+}
+
+function drawEqRankChart(canvasId, items, targetPPM) {
+  // items: [{label, ppm, sigma}] sorted desc by ppm
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (!items.length) { ctx.fillStyle='#bbb'; ctx.textAlign='center'; ctx.fillText('데이터 없음', W/2, H/2); return; }
+  const leftM = 56, rightM = 60, topM = 10, botM = 10;
+  const plotW = W - leftM - rightM, plotH = H - topM - botM;
+  const maxV = Math.max(items[0].ppm, targetPPM) * 1.08;
+  const rowH = plotH / items.length;
+  const barH = rowH * 0.62;
+  ctx.font = '10.5px Arial';
+  items.forEach((it,i)=>{
+    const y = topM + rowH*i + (rowH-barH)/2;
+    const w = plotW * (it.ppm/maxV);
+    ctx.fillStyle = colorFromSigma(it.sigma);
+    ctx.fillRect(leftM, y, w, barH);
+    ctx.fillStyle = '#333'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText(it.label, leftM-6, y+barH/2);
+    ctx.textAlign='left';
+    ctx.fillText(Math.round(it.ppm).toLocaleString()+' PPM', leftM+w+6, y+barH/2);
+  });
+  // target line
+  const tx = leftM + plotW * (targetPPM/maxV);
+  ctx.strokeStyle = '#1e3c72'; ctx.setLineDash([5,4]); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(tx, topM); ctx.lineTo(tx, topM+plotH); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#1e3c72'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
+  ctx.fillText('목표', tx, topM-2>0?8:8);
+}
+
+function drawControlChart(canvasId, dailyItems) {
+  // dailyItems: [{date, p, ucl, lcl, cl, n}]
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (!dailyItems.length) { ctx.fillStyle='#bbb'; ctx.textAlign='center'; ctx.fillText('데이터 없음', W/2, H/2); return; }
+  const leftM = 50, rightM = 20, topM = 16, botM = 46;
+  const plotW = W - leftM - rightM, plotH = H - topM - botM;
+  const maxP = Math.max(...dailyItems.map(d=>Math.max(d.p,d.ucl))) * 1.15;
+  const n = dailyItems.length;
+  const stepX = n>1 ? plotW/(n-1) : 0;
+  const xAt = i => leftM + stepX*i;
+  const yAt = p => topM + plotH - (plotH*p/maxP);
+  // y gridlines
+  ctx.strokeStyle='#eee'; ctx.fillStyle='#999'; ctx.font='9px Arial'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  for (let i=0;i<=4;i++){
+    const val = maxP*i/4;
+    const y = yAt(val);
+    ctx.beginPath(); ctx.moveTo(leftM,y); ctx.lineTo(leftM+plotW,y); ctx.stroke();
+    ctx.fillText((val*100).toFixed(1)+'%', leftM-6, y);
+  }
+  // UCL/LCL band
+  ctx.beginPath();
+  dailyItems.forEach((d,i)=>{ const x=xAt(i), y=yAt(d.ucl); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  for (let i=n-1;i>=0;i--){ const d=dailyItems[i]; const x=xAt(i), y=yAt(d.lcl); ctx.lineTo(x,y); }
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(150,150,150,0.18)'; ctx.fill();
+  // CL line
+  ctx.strokeStyle='#999'; ctx.setLineDash([5,3]); ctx.lineWidth=1.5;
+  ctx.beginPath(); dailyItems.forEach((d,i)=>{ const x=xAt(i), y=yAt(d.cl); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }); ctx.stroke(); ctx.setLineDash([]);
+  // p line
+  ctx.strokeStyle = '#7c4dff'; ctx.lineWidth = 2.2;
+  ctx.beginPath(); dailyItems.forEach((d,i)=>{ const x=xAt(i), y=yAt(d.p); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }); ctx.stroke();
+  dailyItems.forEach((d,i)=>{
+    const x=xAt(i), y=yAt(d.p);
+    const outOfControl = d.p > d.ucl || d.p < d.lcl;
+    ctx.fillStyle = outOfControl ? '#e53935' : '#7c4dff';
+    ctx.beginPath(); ctx.arc(x,y, outOfControl?5:3.5, 0, 7); ctx.fill();
+    // x labels
+    ctx.save();
+    ctx.translate(x, topM+plotH+10);
+    ctx.rotate(-Math.PI/4);
+    ctx.fillStyle='#555'; ctx.font='9.5px Arial'; ctx.textAlign='right';
+    ctx.fillText(d.date.slice(5), 0, 0);
+    ctx.restore();
+  });
+}
+
+function drawModelRankChart(canvasId, items, targetPPM) {
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (!items.length) { ctx.fillStyle='#bbb'; ctx.textAlign='center'; ctx.fillText('데이터 없음', W/2, H/2); return; }
+  const top = items.slice(0,15);
+  const leftM = 140, rightM = 70, topM = 10, botM = 10;
+  const plotW = W - leftM - rightM, plotH = H - topM - botM;
+  const maxV = Math.max(top[0].ppm, targetPPM) * 1.08;
+  const rowH = plotH/top.length, barH = rowH*0.6;
+  ctx.font='10px Arial';
+  top.forEach((it,i)=>{
+    const y = topM+rowH*i+(rowH-barH)/2;
+    const w = plotW*(it.ppm/maxV);
+    ctx.fillStyle = colorFromSigma(it.sigma);
+    ctx.fillRect(leftM,y,w,barH);
+    ctx.fillStyle='#333'; ctx.textAlign='right'; ctx.textBaseline='middle';
+    ctx.fillText(it.label.length>16? it.label.slice(0,15)+'…' : it.label, leftM-6, y+barH/2);
+    ctx.textAlign='left';
+    ctx.fillText(Math.round(it.ppm).toLocaleString(), leftM+w+6, y+barH/2);
+  });
+  const tx = leftM+plotW*(targetPPM/maxV);
+  ctx.strokeStyle='#1e3c72'; ctx.setLineDash([5,4]); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(tx,topM); ctx.lineTo(tx,topM+plotH); ctx.stroke(); ctx.setLineDash([]);
+}
+
+/* =========================================================================
+   4b. Worst-5 트렌드 (설비/모델별 주차 단위 불량율·점유율 추이)
+   ========================================================================= */
+const TREND_COLORS = ['#1e88e5','#e53935','#43a047','#7c4dff','#fb8c00'];
+
+function computeWorstTrend(rows, keyField) {
+  if (!rows || !rows.length) return null;
+  const totals = {};
+  rows.forEach(r => {
+    const k = r[keyField]; if (!k) return;
+    if (!totals[k]) totals[k] = { total:0, bad:0 };
+    totals[k].total += Number(r['Qty_Total'])||0;
+    totals[k].bad += Number(r['불량수량'])||0;
+  });
+  const worst5 = Object.entries(totals)
+    .filter(([,v]) => v.total > 0)
+    .map(([k,v]) => ({ k, rate: v.bad/v.total }))
+    .sort((a,b) => b.rate-a.rate)
+    .slice(0,5)
+    .map(x => x.k);
+  if (!worst5.length) return null;
+
+  const weeks = [...new Set(rows.map(r=>r['주차']))].filter(Boolean).sort();
+  const weekGroupStats = {}, weekTotalBad = {};
+  weeks.forEach(w => { weekGroupStats[w] = {}; weekTotalBad[w] = 0; });
+  rows.forEach(r => {
+    const w = r['주차']; if (!w) return;
+    const bad = Number(r['불량수량'])||0;
+    weekTotalBad[w] += bad;
+    const k = r[keyField]; if (!worst5.includes(k)) return;
+    if (!weekGroupStats[w][k]) weekGroupStats[w][k] = { total:0, bad:0 };
+    weekGroupStats[w][k].total += Number(r['Qty_Total'])||0;
+    weekGroupStats[w][k].bad += bad;
+  });
+
+  const rateSeries = worst5.map((k,idx) => ({
+    label: k, color: TREND_COLORS[idx % TREND_COLORS.length],
+    values: weeks.map(w => { const s = weekGroupStats[w][k]; return (s && s.total) ? s.bad/s.total : null; })
+  }));
+  const shareSeries = worst5.map((k,idx) => ({
+    label: k, color: TREND_COLORS[idx % TREND_COLORS.length],
+    values: weeks.map(w => { const s = weekGroupStats[w][k]; return (s && weekTotalBad[w]) ? s.bad/weekTotalBad[w] : null; })
+  }));
+  return { weeks, worst5, rateSeries, shareSeries };
+}
+
+function drawMultiLineChart(canvasId, weeks, series) {
+  const canvas = document.getElementById(canvasId);
+  const { W, H, ctx } = sizeCanvas(canvas);
+  ctx.clearRect(0,0,W,H);
+  if (!weeks.length || !series.length) { ctx.fillStyle='#bbb'; ctx.textAlign='center'; ctx.fillText('데이터 없음', W/2, H/2); return; }
+  const leftM=50, rightM=20, topM=16, botM=40;
+  const plotW = W-leftM-rightM, plotH = H-topM-botM;
+  const allVals = series.flatMap(s=>s.values).filter(v=>v!=null);
+  const maxV = allVals.length ? Math.max(...allVals)*1.15 : 0.1;
+  const n = weeks.length;
+  const stepX = n>1 ? plotW/(n-1) : 0;
+  const xAt = i => leftM + stepX*i;
+  const yAt = v => topM + plotH - (plotH*v/(maxV||1));
+  ctx.strokeStyle='#eee'; ctx.fillStyle='#999'; ctx.font='9px Arial'; ctx.textAlign='right'; ctx.textBaseline='middle';
+  for (let i=0;i<=4;i++){
+    const val = maxV*i/4; const y=yAt(val);
+    ctx.beginPath(); ctx.moveTo(leftM,y); ctx.lineTo(leftM+plotW,y); ctx.stroke();
+    ctx.fillText((val*100).toFixed(1)+'%', leftM-6, y);
+  }
+  series.forEach(s => {
+    ctx.strokeStyle = s.color; ctx.lineWidth = 2.2; ctx.beginPath();
+    let started = false;
+    s.values.forEach((v,i) => {
+      if (v==null) { started = false; return; }
+      const x = xAt(i), y = yAt(v);
+      if (!started) { ctx.moveTo(x,y); started = true; } else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    s.values.forEach((v,i) => {
+      if (v==null) return;
+      const x = xAt(i), y = yAt(v);
+      ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(x,y,3.2,0,7); ctx.fill();
+    });
+  });
+  ctx.fillStyle='#555'; ctx.font='9.5px Arial'; ctx.textAlign='center';
+  weeks.forEach((w,i) => { ctx.fillText(w, xAt(i), topM+plotH+16); });
+}
+
+function renderTrendLegend(series) {
+  const el = document.getElementById('trendLegend');
+  el.innerHTML = series.map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:2px;background:${s.color};display:inline-block;"></span>${s.label}</span>`
+  ).join('');
+}
+
+function renderTrendChart() {
+  const group = document.getElementById('trendGroupSelect').value;
+  const metric = document.getElementById('trendMetricSelect').value;
+  const foot = document.getElementById('trendFootnote');
+  let rows, keyField, label;
+  if (group === 'eq') { rows = RAW_Q; keyField = '설비명'; label = '설비'; }
+  else { rows = RAW_MODEL; keyField = 'Model'; label = '모델'; }
+
+  if (!rows || !rows.length) {
+    drawMultiLineChart('chart-trend', [], []);
+    document.getElementById('trendLegend').innerHTML = '';
+    foot.textContent = group === 'model'
+      ? '※ Q_Model상세 실시간 연동이 아직 설정되지 않아 모델 트렌드를 표시할 수 없습니다 (임베디드 스냅샷은 단일 주차라 트렌드 불가 — 지난 안내대로 웹에 게시 후 gid를 코드에 넣어주세요).'
+      : '※ 데이터 없음';
+    return;
+  }
+  const trend = computeWorstTrend(rows, keyField);
+  if (!trend) {
+    drawMultiLineChart('chart-trend', [], []);
+    document.getElementById('trendLegend').innerHTML = '';
+    foot.textContent = '※ 데이터 없음';
+    return;
+  }
+  const series = metric === 'rate' ? trend.rateSeries : trend.shareSeries;
+  drawMultiLineChart('chart-trend', trend.weeks, series);
+  renderTrendLegend(series);
+  const metricLabel = metric === 'rate' ? '불량율' : '불량 점유율';
+  foot.textContent = `※ 전체 누적(${trend.weeks.length}개 주차) 기준 ${label} Worst-5의 주차별 ${metricLabel} 추이입니다. 상단 "분석 범위" 선택과 무관하게 항상 전체 기간을 사용합니다.`;
+}
+
+/* =========================================================================
+   5. Model-level quality — now live-syncable.
+      A separate Google Sheet "STC_OEE_Quality_Model_Detail" (Q_Model상세 탭,
+      Model 컬럼 포함) can be published to web and fetched as CSV, the same
+      way the Q/품질 탭 already is (see section 7). Set MODEL_GID below once
+      that sheet is published; until then this falls back to the embedded
+      W28 snapshot so the card always has something to show.
+   ========================================================================= */
+const MODEL_SNAPSHOT = {
+  period: 'W28 (2026-07-01 ~ 2026-07-07)',
+  items: [{"model": "AH2 HEAD REAR", "eqs": ["DC16"], "total": 797, "bad": 413, "topDefect": "스펙미달", "topDefectCount": 350}, {"model": "SM HEAD FRONT", "eqs": ["DC9"], "total": 1691, "bad": 499, "topDefect": "게이트파손", "topDefectCount": 97}, {"model": "COLUMN SIERRA", "eqs": ["DC9"], "total": 320, "bad": 84, "topDefect": "표면오염", "topDefectCount": 24}, {"model": "COLUMN SP3i KEY", "eqs": ["DC22", "DC9"], "total": 5666, "bad": 1051, "topDefect": "자동불량", "topDefectCount": 382}, {"model": "PLATE GRIDDLE 469A", "eqs": ["DC15", "DC20"], "total": 6486, "bad": 944, "topDefect": "미성형", "topDefectCount": 240}, {"model": "BURNER CUP-OVAL", "eqs": ["DC2"], "total": 12710, "bad": 1817, "topDefect": "미성형", "topDefectCount": 779}, {"model": "GEM HEAD REAR", "eqs": ["DC10"], "total": 1176, "bad": 168, "topDefect": "게이트파손", "topDefectCount": 45}, {"model": "BURNER HEAD FISH (B)", "eqs": ["DC16"], "total": 2496, "bad": 316, "topDefect": "표면오염", "topDefectCount": 183}, {"model": "AL NUT SPIN (M24)", "eqs": ["DC6"], "total": 41578, "bad": 5087, "topDefect": "스크래치", "topDefectCount": 1632}, {"model": "FLANGE SHAFT POSEIDON", "eqs": ["DC6", "DC8"], "total": 11835, "bad": 1442, "topDefect": "표면오염", "topDefectCount": 474}, {"model": "FLANGE SHAFT 116B", "eqs": ["DC15"], "total": 1060, "bad": 112, "topDefect": "미성형", "topDefectCount": 14}, {"model": "COVER", "eqs": ["DC21"], "total": 5152, "bad": 484, "topDefect": "제품끼임", "topDefectCount": 71}, {"model": "HOUSING COVER", "eqs": ["DC6"], "total": 118, "bad": 10, "topDefect": "미성형", "topDefectCount": 5}, {"model": "HS15 CYLINDER FRONT", "eqs": ["DC4"], "total": 1410, "bad": 119, "topDefect": "표면오염", "topDefectCount": 53}, {"model": "Rear Housing A type", "eqs": ["DC22"], "total": 4802, "bad": 386, "topDefect": "자동불량", "topDefectCount": 131}, {"model": "FLANGE SHAFT 67D", "eqs": ["DC11", "DC15"], "total": 13152, "bad": 1057, "topDefect": "미성형", "topDefectCount": 122}, {"model": "FLANGE SHAFT 101A", "eqs": ["DC12", "DC15"], "total": 12942, "bad": 937, "topDefect": "미성형", "topDefectCount": 209}, {"model": "Support (CN8)", "eqs": ["DC21"], "total": 2866, "bad": 204, "topDefect": "표면오염", "topDefectCount": 29}, {"model": "COLUMN SW", "eqs": ["DC22", "DC23"], "total": 10747, "bad": 727, "topDefect": "자동불량", "topDefectCount": 107}, {"model": "HS15 CYLINDER REAR", "eqs": ["DC4"], "total": 3200, "bad": 194, "topDefect": "자동불량", "topDefectCount": 98}, {"model": "FC1U5G5CAA01", "eqs": ["DC16"], "total": 40016, "bad": 2316, "topDefect": "게이트파손", "topDefectCount": 680}, {"model": "BA FRONT CYLINDER", "eqs": ["DC23"], "total": 2178, "bad": 125, "topDefect": "품질확인", "topDefectCount": 17}, {"model": "SUPPORT", "eqs": ["DC21"], "total": 8656, "bad": 467, "topDefect": "자동불량", "topDefectCount": 62}, {"model": "T1XGF HEAT SINK", "eqs": ["DC21", "DC4"], "total": 11992, "bad": 577, "topDefect": "표면오염", "topDefectCount": 74}, {"model": "GEM CYLINDER REAR", "eqs": ["DC10"], "total": 17370, "bad": 749, "topDefect": "게이트파손", "topDefectCount": 174}, {"model": "JOINT FLANGE", "eqs": ["DC16"], "total": 2880, "bad": 100, "topDefect": "표면오염", "topDefectCount": 40}, {"model": "FLANGE SHAFT (14KG)", "eqs": ["DC3"], "total": 10668, "bad": 322, "topDefect": "핀파손", "topDefectCount": 54}, {"model": "FC1L0F2S1A02", "eqs": ["DC16"], "total": 10880, "bad": 240, "topDefect": null, "topDefectCount": 0}]
+};
+
+/* =========================================================================
+   6. Rendering pipeline
+   ========================================================================= */
+let RAW_Q = []; // cached Q rows from Google Sheets
+
+function getPeriodBounds() {
+  const scope = document.getElementById('scopeSelect').value;
+  if (scope === 'all' || !RAW_Q.length) return null;
+  const dates = [...new Set(RAW_Q.map(r=>r['일자']))].filter(Boolean).sort();
+  if (scope === 'last1' || scope === 'last2') {
+    if (!dates.length) return null;
+    const n = scope === 'last1' ? 7 : 14;
+    const cutoffDates = dates.slice(Math.max(0, dates.length-n));
+    return { start: cutoffDates[0], end: cutoffDates[cutoffDates.length-1] };
+  }
+  if (scope === 'week') {
+    const w = document.getElementById('weekSelect').value;
+    return w ? { week: w } : null;
+  }
+  if (scope === 'custom') {
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    return (s && e) ? { start: s, end: e } : null;
+  }
+  return null;
+}
+
+function inPeriod(row, bounds) {
+  if (!bounds) return true;
+  if (bounds.week) return row['주차'] === bounds.week;
+  const d = row['일자'];
+  if (!d) return false;
+  return d >= bounds.start && d <= bounds.end;
+}
+
+function onScopeChange() {
+  const scope = document.getElementById('scopeSelect').value;
+  document.getElementById('weekSelectWrap').style.display = scope === 'week' ? '' : 'none';
+  document.getElementById('customDateWrap').style.display = scope === 'custom' ? '' : 'none';
+  renderAll();
+}
+
+function populateWeekSelect() {
+  const sel = document.getElementById('weekSelect');
+  const weeks = [...new Set(RAW_Q.map(r=>r['주차']))].filter(Boolean).sort();
+  const prev = sel.value;
+  sel.innerHTML = weeks.map(w=>`<option value="${w}">${w}</option>`).join('');
+  if (weeks.includes(prev)) sel.value = prev; else if (weeks.length) sel.value = weeks[weeks.length-1];
+}
+
+function filteredRows() {
+  if (!RAW_Q.length) return RAW_Q;
+  const bounds = getPeriodBounds();
+  return RAW_Q.filter(r => inPeriod(r, bounds));
+}
+
+function targetSigmaValue() { return parseFloat(document.getElementById('targetSigmaSelect').value); }
+function targetPPMValue() {
+  const s = targetSigmaValue();
+  const row = SIGMA_TABLE.find(r=>r.sigma===s);
+  return row ? row.ppm : 6210;
+}
+
+function renderKPIs(stats) {
+  document.getElementById('kpiTotal').textContent = stats.total ? stats.total.toLocaleString() : '-';
+  document.getElementById('kpiBad').textContent = stats.bad!=null ? stats.bad.toLocaleString() : '-';
+  document.getElementById('kpiBadSub').textContent = stats.total ? '불량률 ' + (stats.bad/stats.total*100).toFixed(2) + '%' : '';
+  document.getElementById('kpiPPM').textContent = stats.ppm!=null ? Math.round(stats.ppm).toLocaleString() : '-';
+  const target = targetPPMValue();
+  document.getElementById('kpiPPMSub').textContent = stats.ppm!=null ? `목표 ${target.toLocaleString()} PPM 대비 ${stats.ppm<=target?'달성':'미달'}` : '';
+  document.getElementById('kpiSigma').textContent = stats.sigma!=null ? stats.sigma.toFixed(2)+'σ' : '-';
+  const grade = gradeFromSigma(stats.sigma);
+  document.getElementById('kpiGrade').innerHTML = `<span class="grade-badge ${grade.cls}">${grade.label}</span>`;
+  document.getElementById('kpiGradeSub').textContent = stats.total ? `검사수량 ${stats.total.toLocaleString()}건 기준` : '';
+}
+
+function renderSigmaScale(sigma) {
+  const el = document.getElementById('sigmaScale');
+  const bands = [
+    {from:0,to:2,color:'#e53935'},{from:2,to:3,color:'#fb8c00'},{from:3,to:4,color:'#c0a000'},
+    {from:4,to:5,color:'#7cb342'},{from:5,to:6,color:'#43a047'}
+  ];
+  el.innerHTML = '';
+  bands.forEach(b=>{
+    const d = document.createElement('div');
+    d.style.background = b.color;
+    d.textContent = b.from+'σ~'+b.to+'σ';
+    el.appendChild(d);
+  });
+  if (sigma!=null) {
+    const pct = Math.max(0,Math.min(100, sigma/6*100));
+    const marker = document.createElement('div');
+    marker.className = 'sigma-marker-line';
+    marker.style.left = pct+'%';
+    el.style.position = 'relative';
+    el.appendChild(marker);
+  }
+}
+
+function renderEqTable(stats) {
+  const tbody = document.querySelector('#table-eq tbody');
+  tbody.innerHTML = '';
+  const ranked = Object.entries(stats.byEq)
+    .map(([eq,v])=>({eq, ...v, ppm: v.total?v.bad/v.total*1e6:null}))
+    .filter(r=>r.total>0)
+    .map(r=>({...r, sigma: sigmaFromPPM(r.ppm)}))
+    .sort((a,b)=>b.ppm-a.ppm);
+  ranked.forEach(r=>{
+    const grade = gradeFromSigma(r.sigma);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${r.eq}</td><td>${r.total.toLocaleString()}</td><td>${r.bad.toLocaleString()}</td>
+      <td>${(r.bad/r.total*100).toFixed(2)}%</td><td>${Math.round(r.ppm).toLocaleString()}</td>
+      <td>${r.sigma.toFixed(2)}σ</td><td><span class="grade-badge ${grade.cls}">${grade.label}</span></td>`;
+    tbody.appendChild(tr);
+  });
+  return ranked;
+}
+
+let MODEL_LIVE = null; // deprecated flag kept for status-line note; real data lives in RAW_MODEL
+
+function renderModelTable() {
+  const tbody = document.querySelector('#table-model tbody');
+  tbody.innerHTML = '';
+  let source;
+  if (RAW_MODEL && RAW_MODEL.length) {
+    const bounds = getPeriodBounds();
+    const rows = RAW_MODEL.filter(r => inPeriod(r, bounds));
+    source = aggregateModelRows(rows);
+  } else {
+    source = MODEL_SNAPSHOT; // 스냅샷은 W28 고정 데이터이므로 분석 범위 필터가 적용되지 않음
+  }
+  const ranked = source.items.map(m=>{
+    const ppm = m.total ? m.bad/m.total*1e6 : null;
+    return {...m, ppm, sigma: sigmaFromPPM(ppm)};
+  }).sort((a,b)=>b.ppm-a.ppm);
+  const q = (document.getElementById('modelSearchInput')?.value || '').trim().toLowerCase();
+  const visible = q ? ranked.filter(m => m.model.toLowerCase().includes(q)) : ranked;
+  visible.forEach(m=>{
+    const grade = gradeFromSigma(m.sigma);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${m.model}</td><td class="eq-tags">${m.eqs.join(', ')}</td>
+      <td>${m.total.toLocaleString()}</td><td>${m.bad.toLocaleString()}</td>
+      <td>${Math.round(m.ppm).toLocaleString()}</td><td>${m.sigma.toFixed(2)}σ</td>
+      <td><span class="grade-badge ${grade.cls}">${grade.label}</span></td>
+      <td style="text-align:left;">${m.topDefect ? m.topDefect+' ('+m.topDefectCount.toLocaleString()+')' : '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+  return ranked;
+}
+
+function renderAll() {
+  const rows = filteredRows();
+  const stats = computeQualityStats(rows);
+  renderKPIs(stats);
+  renderSigmaScale(stats.sigma);
+  drawSigmaGauge('chart-gauge', stats.sigma, targetSigmaValue());
+
+  const paretoItems = Object.entries(stats.paretoRaw).filter(([k,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value}));
+  drawParetoChart('chart-pareto', paretoItems);
+  const worstLabel = paretoItems[0] ? paretoItems[0].label : '-';
+  document.getElementById('paretoNote').textContent = `※ 세부 사유 미기재(불량수량-사유합계) 건은 '미분류'로 별도 집계됩니다. 현재 1위 원인: ${worstLabel}.`;
+
+  const eqRanked = renderEqTable(stats);
+  const eqTop = eqRanked.filter(r=>r.ppm!=null).map(r=>({label:r.eq, ppm:r.ppm, sigma:r.sigma}));
+  drawEqRankChart('chart-eqrank', eqTop, targetPPMValue());
+
+  const dates = [...new Set(rows.map(r=>r['일자']))].filter(Boolean).sort();
+  const pbar = stats.total>0 ? stats.bad/stats.total : 0;
+  const dailyItems = dates.map(d=>{
+    const v = stats.byDay[d] || {total:0,bad:0};
+    const n = v.total || 1;
+    const se = Math.sqrt(pbar*(1-pbar)/n);
+    return { date:d, p: v.total? v.bad/v.total : 0, ucl: Math.min(1,pbar+3*se), lcl: Math.max(0,pbar-3*se), cl: pbar, n:v.total };
+  });
+  drawControlChart('chart-control', dailyItems);
+
+  const modelRanked = renderModelTable();
+  const modelTop = modelRanked.map(m=>({label:m.model, ppm:m.ppm, sigma:m.sigma}));
+  drawModelRankChart('chart-model', modelTop, targetPPMValue());
+
+  renderTrendChart();
+}
+
+/* =========================================================================
+   7. Google Sheets live sync (Q/품질 탭만 필요)
+   ========================================================================= */
+const SHEET_PUB_KEY = '2PACX-1vQ6U8gG0Mr3oJ-5XOOzr7Eh_oZGc-BGHFG0n1__eor4Zc8aJaMuf01NXCAHJECH6U8aUvtnQGLKD5-_';
+const Q_GID = '116850424';
+function sheetCsvUrl(gid){ return `https://docs.google.com/spreadsheets/d/e/${SHEET_PUB_KEY}/pub?gid=${gid}&single=true&output=csv`; }
+
+/* ---- Model detail live sync (별도 스프레드시트) ----
+   1) STC_OEE_Quality_Model_Detail 시트를 여세요.
+   2) 파일 > 공유 > 웹에 게시(Publish to web) > Q_Model상세 탭 선택 > CSV.
+   3) 발급된 pub key(2PACX-...)와 Q_Model상세 탭의 gid를 아래 두 줄에 넣으세요.
+   비워두면 임베디드 W28 스냅샷을 계속 사용합니다(화면 표시는 정상 동작). */
+const MODEL_SHEET_PUB_KEY = '2PACX-1vQ6U8gG0Mr3oJ-5XOOzr7Eh_oZGc-BGHFG0n1__eor4Zc8aJaMuf01NXCAHJECH6U8aUvtnQGLKD5-_'; // OEE_RawData_APQ 게시 pub key (Q탭과 동일)
+const MODEL_GID = '635880711'; // Q_Model상세 탭 gid
+function modelCsvUrl(){ return `https://docs.google.com/spreadsheets/d/e/${MODEL_SHEET_PUB_KEY}/pub?gid=${MODEL_GID}&single=true&output=csv`; }
+
+let RAW_MODEL = null; // raw Q_Model상세 rows from Google Sheets (period filtering applied at render time)
+
+function aggregateModelRows(rows) {
+  if (!rows.length) return { items: [] };
+  const agg = {};
+  const defectCols = Object.keys(rows[0]).filter(k => !['일자','주차','설비명','교대','Model','구분','Qty_Total','Qty_Good','불량수량','품질(Q)'].includes(k));
+  rows.forEach(r => {
+    const m = r['Model']; if (!m) return;
+    if (!agg[m]) agg[m] = { model:m, eqs:new Set(), total:0, bad:0, defects:{} };
+    agg[m].eqs.add(r['설비명']);
+    agg[m].total += Number(r['Qty_Total'])||0;
+    agg[m].bad += Number(r['불량수량'])||0;
+    defectCols.forEach(c => { agg[m].defects[c] = (agg[m].defects[c]||0) + (Number(r[c])||0); });
+  });
+  return {
+    items: Object.values(agg).map(m => {
+      const top = Object.entries(m.defects).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1])[0];
+      return { model:m.model, eqs:[...m.eqs], total:m.total, bad:m.bad, topDefect: top?top[0]:null, topDefectCount: top?top[1]:0 };
+    })
+  };
+}
+
+async function fetchModelDetailLive(){
+  if (!MODEL_SHEET_PUB_KEY || !MODEL_GID) return null; // 미설정 → 스냅샷 사용
+  try {
+    const res = await fetch(modelCsvUrl(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`시트 응답 오류: ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length || !('Model' in rows[0])) throw new Error('Q_Model상세 탭 컬럼 구조를 확인해주세요.');
+    return rows; // raw rows; filtered+aggregated per current 분석 범위 at render time
+  } catch(e) {
+    console.error('Model detail live sync failed, using snapshot:', e);
+    return null;
+  }
+}
+
+/* ---- PDCA 개선관리 live sync ----
+   STC_OEE_PDCA_개선관리 시트를 웹에 게시(CSV)한 뒤 pub key/gid를 아래에 넣으세요.
+   컬럼: 구분,대상,문제현상(Plan),목표,개선조치(Do),개선전_시작일,개선전_종료일,개선후_시작일,개선후_종료일,상태 */
+const PDCA_SHEET_PUB_KEY = ''; // 예: '2PACX-1vXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+const PDCA_GID = ''; // 예: '987654321'
+function pdcaCsvUrl(){ return `https://docs.google.com/spreadsheets/d/e/${PDCA_SHEET_PUB_KEY}/pub?gid=${PDCA_GID}&single=true&output=csv`; }
+
+let RAW_PDCA = null;
+
+async function fetchPDCALive(){
+  if (!PDCA_SHEET_PUB_KEY || !PDCA_GID) return null;
+  try {
+    const res = await fetch(pdcaCsvUrl(), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`시트 응답 오류: ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length || !('대상' in rows[0])) throw new Error('PDCA 시트 컬럼 구조를 확인해주세요.');
+    return rows;
+  } catch(e) {
+    console.error('PDCA live sync failed:', e);
+    return null;
+  }
+}
+
+// 대상(설비명 또는 Model)의 defectRate(bad/total)를 지정된 날짜 범위(inclusive, YYYY-MM-DD)에서 계산
+function defectRateInRange(gubun, target, startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  const src = gubun === '모델' ? RAW_MODEL : RAW_Q;
+  const key = gubun === '모델' ? 'Model' : '설비명';
+  if (!src || !src.length) return null;
+  let total = 0, bad = 0;
+  src.forEach(r => {
+    if (r[key] !== target) return;
+    const d = r['일자']; if (!d || d < startDate || d > endDate) return;
+    total += Number(r['Qty_Total'])||0;
+    bad += Number(r['불량수량'])||0;
+  });
+  return total > 0 ? { rate: bad/total, total, bad } : null;
+}
+
+function renderPDCATable() {
+  const tbody = document.querySelector('#table-pdca tbody');
+  tbody.innerHTML = '';
+  const foot = document.getElementById('pdcaFootnote');
+  if (!RAW_PDCA || !RAW_PDCA.length) {
+    foot.textContent = 'PDCA 시트가 아직 연동되지 않았습니다 — STC_OEE_PDCA_개선관리 시트를 웹에 게시하고 PDCA_SHEET_PUB_KEY / PDCA_GID를 코드에 입력해주세요.';
+    return;
+  }
+  RAW_PDCA.forEach(r => {
+    const gubun = r['구분'], target = r['대상'];
+    const before = defectRateInRange(gubun, target, r['개선전_시작일'], r['개선전_종료일']);
+    const after = defectRateInRange(gubun, target, r['개선후_시작일'], r['개선후_종료일']);
+    let effectText = '측정 대기', effectColor = '#999';
+    if (before && after) {
+      const improvePct = (before.rate - after.rate) / before.rate * 100;
+      effectColor = improvePct > 0 ? '#2e7d32' : '#c62828';
+      effectText = (improvePct>0?'▼ ':'▲ ') + Math.abs(improvePct).toFixed(1) + '%';
+    } else if (before && !after) {
+      effectText = '개선후 데이터 대기중';
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${gubun}</td><td><b>${target}</b></td>
+      <td style="text-align:left;max-width:260px;">${r['문제현상(Plan)']||''}</td>
+      <td style="text-align:left;">${r['목표']||''}</td>
+      <td style="text-align:left;max-width:220px;">${r['개선조치(Do)']||''}</td>
+      <td>${before ? (before.rate*100).toFixed(1)+'%' : '-'}</td>
+      <td>${after ? (after.rate*100).toFixed(1)+'%' : '-'}</td>
+      <td style="color:${effectColor};font-weight:700;">${effectText}</td>
+      <td>${r['상태']||'-'}</td>`;
+    tbody.appendChild(tr);
+  });
+  foot.textContent = `※ 개선전/후 불량률은 시트에 입력된 기간을 기준으로 실제 데이터에서 자동 계산됩니다. 총 ${RAW_PDCA.length}개 항목 관리 중.`;
+}
+
+function setStatus(msg, isError){
+  const el = document.getElementById('statusLine');
+  el.textContent = msg;
+  el.className = 'status-line' + (isError ? ' err' : '');
+}
+
+async function onRefreshClick(){
+  try {
+    setStatus('구글시트(품질 탭)에서 불러오는 중...');
+    const res = await fetch(sheetCsvUrl(Q_GID), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`시트 응답 오류: ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    if (!rows.length || !('Qty_Total' in rows[0])) throw new Error('품질(Q) 탭 컬럼 구조를 확인해주세요.');
+    RAW_Q = rows;
+    populateWeekSelect();
+    const cache = (await Store.get(STORE_KEY)) || {};
+    cache.rawQ = { header: Object.keys(rows[0]), rows, fetchedAt: Date.now() };
+    await Store.set(STORE_KEY, cache);
+    RAW_MODEL = await fetchModelDetailLive(); // null if not configured/failed; renderModelTable() falls back to snapshot
+    MODEL_LIVE = !!RAW_MODEL;
+    RAW_PDCA = await fetchPDCALive();
+    renderAll();
+    renderPDCATable();
+    const dates = [...new Set(rows.map(r=>r['일자']))].filter(Boolean).sort();
+    const modelNote = RAW_MODEL ? ` / Model상세 실시간 연동(${RAW_MODEL.length}건)` : ' / Model상세는 임베디드 스냅샷 사용 중';
+    const pdcaNote = RAW_PDCA ? ` / PDCA ${RAW_PDCA.length}건 연동` : '';
+    setStatus(`동기화 완료 — ${dates[0]||'-'} ~ ${dates[dates.length-1]||'-'} (총 ${dates.length}일) 데이터 로드됨${modelNote}${pdcaNote}.`);
+  } catch(e) {
+    console.error(e);
+    const hint = (e instanceof TypeError || /fetch/i.test(e.message))
+      ? ' → Claude 미리보기 창(아티팩트) 안에서는 보안 샌드박스가 외부 네트워크 요청을 막습니다. 이 HTML 파일을 다운로드해서 실제 브라우저(Chrome 등)로 직접 열어 다시 시도해주세요.'
+      : '';
+    setStatus('구글시트 연동 오류: ' + e.message + hint, true);
+    if (RAW_Q.length) renderAll();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const cache = await Store.get(STORE_KEY);
+    if (cache && cache.rawQ && cache.rawQ.rows && cache.rawQ.rows.length) {
+      RAW_Q = cache.rawQ.rows;
+      populateWeekSelect();
+      renderAll();
+      setStatus('캐시 데이터로 초기 렌더링 완료. 구글시트와 동기화 중...');
+    } else {
+      setStatus('구글시트에서 최초 로딩 중...');
+    }
+  } catch(e){ console.error(e); }
+  await onRefreshClick();
+});
+
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => { if (RAW_Q.length) renderAll(); }, 150);
+});
+</script>
+</body>
+</html>
