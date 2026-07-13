@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STC 원본 데이터 변환기</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#f2f4f7; color:#222; }
+  .container { max-width:1100px; margin:0 auto; padding:20px; }
+  header { background:linear-gradient(135deg,#1e3c72 0%,#2a5298 100%); color:#fff; padding:22px 28px; border-radius:8px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
+  h1 { font-size:24px; margin-bottom:4px; }
+  header p.sub { font-size:13px; opacity:.85; }
+  .nav-row { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .nav-row a { color:#fff; background:rgba(255,255,255,0.15); padding:7px 14px; border-radius:4px; text-decoration:none; font-size:13px; font-weight:600; }
+  .nav-row a:hover { background:rgba(255,255,255,0.28); }
+
+  .card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:20px 22px 24px; margin-bottom:20px; }
+  .card-title { font-size:16px; font-weight:800; margin-bottom:14px; padding-bottom:8px; border-bottom:3px solid #2196F3; }
+
+  .form-row { display:flex; gap:20px; flex-wrap:wrap; align-items:flex-end; margin-bottom:14px; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:12px; font-weight:700; color:#555; }
+  .field input[type=file] { font-size:13px; }
+  .field input[type=text], .field input[type=number] { padding:8px 10px; border:1px solid #ddd; border-radius:5px; font-size:13px; width:140px; }
+  .convert-btn { padding:10px 22px; border:none; border-radius:5px; background:#2196F3; color:#fff; font-weight:700; font-size:14px; cursor:pointer; }
+  .convert-btn:hover { background:#1976D2; }
+  .convert-btn:disabled { background:#bbb; cursor:not-allowed; }
+
+  .status-line { font-size:13px; margin-top:10px; padding:10px 12px; border-radius:6px; background:#f6f7f9; color:#555; }
+  .status-line.err { background:#fdecea; color:#c62828; font-weight:600; }
+  .status-line.ok { background:#e8f5e9; color:#2e7d32; font-weight:600; }
+
+  .download-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:16px; }
+  @media (max-width:800px){ .download-grid{ grid-template-columns:1fr; } }
+  .dl-card { border:1px solid #eee; border-radius:8px; padding:16px; text-align:center; }
+  .dl-card h3 { font-size:14px; margin-bottom:6px; }
+  .dl-card p { font-size:12px; color:#888; margin-bottom:12px; }
+  .dl-btn { display:inline-block; padding:9px 18px; border-radius:5px; background:#4CAF50; color:#fff; text-decoration:none; font-weight:700; font-size:13px; }
+  .dl-btn:hover { background:#43A047; }
+
+  table.preview { width:100%; border-collapse:collapse; font-size:11px; margin-top:10px; }
+  table.preview th, table.preview td { border:1px solid #eee; padding:4px 6px; text-align:center; white-space:nowrap; }
+  table.preview th { background:#f6f7f9; }
+  .preview-wrap { overflow-x:auto; max-height:280px; overflow-y:auto; margin-top:10px; }
+
+  .footnote { font-size:11.5px; color:#999; margin-top:14px; line-height:1.7; }
+  .footnote b { color:#666; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🔄 STC 원본 데이터 변환기</h1>
+    <p class="sub">원본 raw data(주/야 통합 wide 포맷)를 구글시트 A/P/Q 3탭 형식으로 자동 변환합니다</p>
+    <div class="nav-row">
+      <a href="./STC_OEE_Dashboard_Weekly.html">← OEE 대시보드로</a>
+      <a href="./STC_OEE_LossAnalysis.html">🔧 설비/Loss 분석</a>
+      <a href="./STC_OEE_PeriodSummary.html">📅 기간별 종합 데이터</a>
+      <a href="./STC_OEE_Quality_SixSigma.html">🎯 품질 Six Sigma 분석</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="card-title">1️⃣ 원본 파일 업로드 &amp; 설정</div>
+    <div class="form-row">
+      <div class="field">
+        <label>원본 raw CSV 파일</label>
+        <input type="file" id="fileInput" accept=".csv">
+      </div>
+      <div class="field">
+        <label>연도</label>
+        <input type="number" id="yearInput" value="2026" min="2000" max="2100">
+      </div>
+      <div class="field">
+        <label>주차 라벨 (예: W28)</label>
+        <input type="text" id="weekInput" placeholder="W28">
+      </div>
+      <div class="field">
+        <button class="convert-btn" id="convertBtn" onclick="onConvertClick()">⚙️ 변환하기</button>
+      </div>
+    </div>
+    <div class="status-line" id="statusLine">파일을 선택하고 연도/주차를 입력한 뒤 변환하기를 눌러주세요.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <div class="card-title">2️⃣ 변환 결과 다운로드</div>
+    <div class="download-grid">
+      <div class="dl-card">
+        <h3>가동률(A) 탭</h3>
+        <p id="countA">-</p>
+        <a class="dl-btn" id="dlA" download="OEE_RawData_APQ_-_A_가동률.csv">CSV 다운로드</a>
+      </div>
+      <div class="dl-card">
+        <h3>성능(P) 탭</h3>
+        <p id="countP">-</p>
+        <a class="dl-btn" id="dlP" download="OEE_RawData_APQ_-_P_성능.csv">CSV 다운로드</a>
+      </div>
+      <div class="dl-card">
+        <h3>품질(Q) 탭</h3>
+        <p id="countQ">-</p>
+        <a class="dl-btn" id="dlQ" download="OEE_RawData_APQ_-_Q_품질.csv">CSV 다운로드</a>
+      </div>
+      <div class="dl-card" style="border-color:#7c4dff;">
+        <h3>🧩 품질(Q) + Model 상세</h3>
+        <p id="countQM">-</p>
+        <a class="dl-btn" id="dlQM" style="background:#7c4dff;" download="OEE_RawData_Q_Model.csv">CSV 다운로드</a>
+      </div>
+    </div>
+    <div class="preview-wrap" id="previewWrap"></div>
+    <div class="footnote">
+      ※ A/P/Q 3개 CSV는 구글시트 <b>OEE_RawData_APQ</b>의 해당 탭 맨 아래에 헤더 행 제외하고 붙여넣으시면 됩니다.<br>
+      ※ <b>품질(Q) + Model 상세</b> CSV는 Model(모델명) 컬럼이 추가로 포함된 품질 데이터입니다 — Six Sigma 품질 대시보드의 "모델별 품질 현황"에서 사용하는
+      별도 구글시트(<b>STC_OEE_Quality_Model_Detail</b>)에 헤더 행 포함하여 붙여넣으시면(또는 새 주차 데이터를 맨 아래에 이어 붙이면) 대시보드가 자동으로 반영합니다.<br>
+      ※ <b>구분(정규/특근)</b>은 요일로 자동 판정했습니다 (일요일 → 특근(주말), 그 외(토요일 포함) → 정규 — 실제 시트 데이터 기준으로 확인한 규칙입니다). 특정 주에 이 규칙과 다르면 붙여넣기 전에 수동으로 고쳐주세요.<br>
+      ※ 원본에 없는 값(예: 활동이 없는 설비의 Avg shot/성능%)은 빈 값으로 남겨둡니다.
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ---------- Raw CSV parsing (quote-aware) ---------- */
+function parseRawCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\r') { }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+const num = v => { if (v==null) return 0; const s = String(v).trim().replace(/,/g,'').replace(/\s/g,''); if (s==='' || s.startsWith('#')) return 0; const n = parseFloat(s); return isNaN(n) ? 0 : n; };
+function cleanStr(v){ return v==null ? '' : String(v).trim(); }
+function cleanPct(v){
+  const s = cleanStr(v);
+  if (!s || s.startsWith('#')) return '';
+  return s;
+}
+
+/* Column index map for the original wide-format reference file (0-indexed) */
+const COL = {
+  date:1, equip:2, shift:3, model:4, cav:5, ctStd:6, ctReal:7, qtyTotal:8, qtyGood:9, avgShot:10,
+  plan:11, run:12, loss:13,
+  lossReasonsStart:14, lossReasonsEnd:44, // inclusive, 31 columns
+  availability:45, performance:46, quality:47,
+  qualReasonsStart:48, qualReasonsEnd:73 // inclusive, 26 columns
+};
+
+const A_HEADER = ['일자','주차','설비명','교대','구분','계획시간_분','가동시간_분','Losstime_분','금형수리','금형파손','핀파손','설비수리','전기로수리','취출기수리','스프레이수리','슬라이드코어수리','팁교체','노즐막힘','플런저오일막힘','래들수리','조건변경','탈산처리','스크랩용해','전기로회전','금형교체','휴식, 설비교대','청소','미팅/정전','금형냉각라인','제품소착','컨베이어수리','설비냉각수','스프레이조정','바가지교체','히터수리','펌프이상','로트마크, 사상','진공설비','기타','가동률(A)'];
+const P_HEADER = ['일자','주차','설비명','교대','구분','Model','CAV','CT_STD','CT_Real','Qty_Total','Avg_shot','가동시간_분','성능(P)'];
+const Q_HEADER = ['일자','주차','설비명','교대','구분','Qty_Total','Qty_Good','불량수량','품질(Q)','미성형','깨짐','찍힘','자동불량','표면오염','기포','핀파손','부풀음','박리','수축','스크래치','소착','언밸런스','품질확인','버','변형','제품끼임','밀핀짧음','밀핀긺','게이트파임','홀틀어짐','게이트파손','중량미달','스펙미달','비스켓두께미달','기타'];
+const Q_MODEL_HEADER = ['일자','주차','설비명','교대','Model','구분','Qty_Total','Qty_Good','불량수량','품질(Q)','미성형','깨짐','찍힘','자동불량','표면오염','기포','핀파손','부풀음','박리','수축','스크래치','소착','언밸런스','품질확인','버','변형','제품끼임','밀핀짧음','밀핀긺','게이트파임','홀틀어짐','게이트파손','중량미달','스펙미달','비스켓두께미달','기타'];
+
+function parseRefDate(raw, year){
+  // raw like "6.24" -> "2026-06-24"
+  const m = cleanStr(raw).match(/^(\d{1,2})\.(\d{1,2})$/);
+  if (!m) return null;
+  const mm = String(parseInt(m[1],10)).padStart(2,'0');
+  const dd = String(parseInt(m[2],10)).padStart(2,'0');
+  return `${year}-${mm}-${dd}`;
+}
+
+function classifyRegular(isoDate){
+  const d = new Date(isoDate + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun ... 6=Sat
+  // Confirmed against actual sheet data: this factory works regular hours on
+  // Saturday and only treats Sunday as 특근(주말). Adjust here if that changes.
+  return (dow === 0) ? '특근(주말)' : '정규';
+}
+
+function csvEscape(v){
+  const s = v===null||v===undefined ? '' : String(v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+function toCSV(header, rows){
+  return [header.map(csvEscape).join(',')].concat(rows.map(r=>r.map(csvEscape).join(','))).join('\r\n');
+}
+
+function convert(rawRows, year, weekLabel){
+  // rawRows: array of row-arrays from parseRawCSV, including the 3 header rows
+  const data = rawRows.slice(3).filter(r => r.length > 1 && cleanStr(r[COL.date]));
+
+  const aRows = [], pRows = [], qRows = [], qModelRows = [];
+  let skipped = 0;
+
+  for (const r of data) {
+    const iso = parseRefDate(r[COL.date], year);
+    if (!iso) { skipped++; continue; }
+    const equip = cleanStr(r[COL.equip]);
+    const shift = cleanStr(r[COL.shift]);
+    const gubun = classifyRegular(iso);
+
+    // A row
+    const lossReasons = [];
+    for (let i = COL.lossReasonsStart; i <= COL.lossReasonsEnd; i++) lossReasons.push(num(r[i]));
+    aRows.push([iso, weekLabel, equip, shift, gubun, num(r[COL.plan]), num(r[COL.run]), num(r[COL.loss]), ...lossReasons, cleanPct(r[COL.availability])]);
+
+    // P row (only meaningful if there's real cycle-time data; still emit the row to preserve structure)
+    pRows.push([iso, weekLabel, equip, shift, gubun, cleanStr(r[COL.model]), cleanStr(r[COL.cav]).trim(), num(r[COL.ctStd]), num(r[COL.ctReal]), num(r[COL.qtyTotal]), num(r[COL.avgShot]), num(r[COL.run]), cleanPct(r[COL.performance])]);
+
+    // Q row
+    const qualReasons = [];
+    for (let i = COL.qualReasonsStart; i <= COL.qualReasonsEnd; i++) qualReasons.push(num(r[i]));
+    const badQty = num(r[COL.qtyTotal]) - num(r[COL.qtyGood]);
+    qRows.push([iso, weekLabel, equip, shift, gubun, num(r[COL.qtyTotal]), num(r[COL.qtyGood]), badQty, cleanPct(r[COL.quality]), ...qualReasons]);
+
+    // Q + Model row (only meaningful when Qty_Total > 0, matches the quality dashboard's own filter)
+    if (num(r[COL.qtyTotal]) > 0) {
+      qModelRows.push([iso, weekLabel, equip, shift, cleanStr(r[COL.model]), gubun, num(r[COL.qtyTotal]), num(r[COL.qtyGood]), badQty, cleanPct(r[COL.quality]), ...qualReasons]);
+    }
+  }
+
+  return { aRows, pRows, qRows, qModelRows, skipped, total: data.length };
+}
+
+/* ---------- File reading with CP949/EUC-KR fallback ---------- */
+async function readFileSmart(file){
+  const buf = await file.arrayBuffer();
+  // try UTF-8 first (in case the file is already UTF-8)
+  const utf8 = new TextDecoder('utf-8', { fatal:false }).decode(buf);
+  if (!utf8.includes('\uFFFD')) return utf8; // no replacement chars -> looks like valid UTF-8
+  try {
+    return new TextDecoder('euc-kr').decode(buf); // handles CP949-compatible Korean text
+  } catch(e) {
+    return utf8;
+  }
+}
+
+function setStatus(msg, kind){
+  const el = document.getElementById('statusLine');
+  el.textContent = msg;
+  el.className = 'status-line' + (kind ? ' ' + kind : '');
+}
+
+function makeDownloadUrl(csvText){
+  const blob = new Blob(['\uFEFF' + csvText], { type: 'text/csv;charset=utf-8;' });
+  return URL.createObjectURL(blob);
+}
+
+function renderPreview(aRows){
+  const head = A_HEADER.slice(0,8);
+  const rows = aRows.slice(0,8);
+  let html = '<table class="preview"><thead><tr>' + head.map(h=>`<th>${h}</th>`).join('') + '<th>...</th></tr></thead><tbody>';
+  for (const r of rows) {
+    html += '<tr>' + r.slice(0,8).map(v=>`<td>${v}</td>`).join('') + '<td>...</td></tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('previewWrap').innerHTML = '<div style="font-size:12px;color:#888;margin-bottom:4px;">미리보기 (A탭, 앞 8열 · 상위 8행)</div>' + html;
+}
+
+async function onConvertClick(){
+  const file = document.getElementById('fileInput').files[0];
+  const year = document.getElementById('yearInput').value.trim();
+  const week = document.getElementById('weekInput').value.trim();
+  if (!file) { setStatus('원본 CSV 파일을 선택해주세요.', 'err'); return; }
+  if (!year) { setStatus('연도를 입력해주세요.', 'err'); return; }
+  if (!week) { setStatus('주차 라벨을 입력해주세요 (예: W28).', 'err'); return; }
+
+  try {
+    setStatus('변환 중...');
+    const text = await readFileSmart(file);
+    const rawRows = parseRawCSV(text);
+    if (rawRows.length < 4) throw new Error('파일 형식을 인식할 수 없습니다 (행이 너무 적음).');
+
+    const { aRows, pRows, qRows, qModelRows, skipped, total } = convert(rawRows, year, week);
+    if (!aRows.length) throw new Error('변환된 데이터가 없습니다. 파일 형식(3행 헤더 + 데이터)을 확인해주세요.');
+
+    const aCsv = toCSV(A_HEADER, aRows);
+    const pCsv = toCSV(P_HEADER, pRows);
+    const qCsv = toCSV(Q_HEADER, qRows);
+    const qModelCsv = toCSV(Q_MODEL_HEADER, qModelRows);
+
+    document.getElementById('dlA').href = makeDownloadUrl(aCsv);
+    document.getElementById('dlP').href = makeDownloadUrl(pCsv);
+    document.getElementById('dlQ').href = makeDownloadUrl(qCsv);
+    document.getElementById('dlQM').href = makeDownloadUrl(qModelCsv);
+    document.getElementById('countA').textContent = aRows.length + '행';
+    document.getElementById('countP').textContent = pRows.length + '행';
+    document.getElementById('countQ').textContent = qRows.length + '행';
+    document.getElementById('countQM').textContent = qModelRows.length + '행 (Model 포함)';
+    document.getElementById('resultCard').style.display = 'block';
+    renderPreview(aRows);
+
+    setStatus(`변환 완료 — 총 ${total}개 데이터 행 중 ${aRows.length}행 변환${skipped ? `, ${skipped}행 건너뜀(일자 인식 불가)` : ''}.`, 'ok');
+  } catch(e){
+    console.error(e);
+    setStatus('변환 오류: ' + e.message, 'err');
+  }
+}
+</script>
+</body>
+</html>
